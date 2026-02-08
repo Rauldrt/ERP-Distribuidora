@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>App Distribuidora</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0066cc">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --success: #28a745;
+            --bg: #f4f4f9;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding-bottom: 100px;
+        }
+
+        /* Barra Superior */
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .client-selector {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        /* Contenedor */
+        #app-container {
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Tarjeta Producto */
+        .product-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .info h3 {
+            margin: 0 0 5px 0;
+            font-size: 1rem;
+        }
+
+        .info p {
+            margin: 0;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .price {
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        /* Controles de Cantidad (+ / -) */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-qty {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: none;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-minus {
+            background-color: #ccc;
+        }
+
+        .btn-plus {
+            background-color: var(--primary);
+        }
+
+        .qty-display {
+            font-weight: bold;
+            font-size: 1.1rem;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        /* Clase cuando hay items seleccionados */
+        .selected .btn-minus {
+            background-color: #dc3545;
+        }
+
+        /* Rojo para restar */
+        .selected {
+            border: 1px solid var(--primary);
+            background-color: #f0f8ff;
+        }
+
+        /* Barra Inferior Flotante (Total) */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-display {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .btn-send {
+            background-color: var(--success);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .btn-send:disabled {
+            background-color: #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div><strong>Nueva Venta</strong></div>
+        <select id="client-select" class="client-selector">
+            <option value="">Cargando clientes...</option>
+        </select>
+    </header>
+
+    <div id="app-container">
+        <div style="text-align:center; padding:20px; color:#666">Cargando catálogo...</div>
+    </div>
+
+    <div class="bottom-bar">
+        <div class="total-display">Total: $<span id="total-amount">0</span></div>
+        <button id="btn-submit" class="btn-send" onclick="enviarPedido()" disabled>Confirmar</button>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const API_URL = "https://script.google.com/macros/s/AKfycbyD1aKqu_YRB7E3T5nxXiLnd0zx7lQ9lV0AUbpbjWmWgLMdVqiDwz4HXPYi-o9Lci0QSg/exec"; // <--- ¡PEGA TU URL DE SCRIPT AQUÍ!
+
+        // Estado de la App
+        let productos = [];
+        let carrito = {}; // Objeto para guardar { ID_Producto: Cantidad }
+
+        // Elementos del DOM
+        const container = document.getElementById('app-container');
+        const clientSelect = document.getElementById('client-select');
+        const totalSpan = document.getElementById('total-amount');
+        const btnSubmit = document.getElementById('btn-submit');
+
+        // 1. Iniciar App
+        async function iniciarApp() {
+            try {
+                // Cargar Clientes y Productos en paralelo
+                const [resProd, resCli] = await Promise.all([
+                    fetch(API_URL + "?action=getProductos"),
+                    fetch(API_URL + "?action=getClientes")
+                ]);
+
+                productos = await resProd.json();
+                const clientes = await resCli.json();
+
+                renderizarClientes(clientes);
+                renderizarProductos(productos);
+
+            } catch (error) {
+                container.innerHTML = `<p style="color:red">Error de conexión. Revisa tu URL o internet.</p>`;
+            }
+        }
+
+        // 2. Dibujar Clientes en el selector
+        function renderizarClientes(lista) {
+            clientSelect.innerHTML = '<option value="">-- Selecciona un Cliente --</option>';
+            lista.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.ID_Cliente; // Guardamos el ID
+                opt.textContent = c.Nombre_Negocio + " (" + c.Dueño + ")";
+                clientSelect.appendChild(opt);
+            });
+        }
+
+        // 3. Dibujar Productos con botones +/-
+        function renderizarProductos(lista) {
+            container.innerHTML = "";
+            lista.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.id = `card-${p.ID_Producto}`;
+                card.innerHTML = `
+                    <div class="info">
+                        <h3>${p.Nombre}</h3>
+                        <p class="price">$${p.Precio_Unitario}</p>
+                    </div>
+                    <div class="controls">
+                        <button class="btn-qty btn-minus" onclick="cambiarCant('${p.ID_Producto}', -1)">-</button>
+                        <span class="qty-display" id="qty-${p.ID_Producto}">0</span>
+                        <button class="btn-qty btn-plus" onclick="cambiarCant('${p.ID_Producto}', 1)">+</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 4. Lógica del Carrito
+        function cambiarCant(id, delta) {
+            if (!carrito[id]) carrito[id] = 0;
+            carrito[id] += delta;
+
+            if (carrito[id] < 0) carrito[id] = 0; // No negativos
+
+            // Actualizar vista (número y color)
+            document.getElementById(`qty-${id}`).textContent = carrito[id];
+            const card = document.getElementById(`card-${id}`);
+            if (carrito[id] > 0) card.classList.add('selected');
+            else card.classList.remove('selected');
+
+            calcularTotal();
+        }
+
+        function calcularTotal() {
+            let total = 0;
+            let items = 0;
+
+            productos.forEach(p => {
+                const cant = carrito[p.ID_Producto] || 0;
+                if (cant > 0) {
+                    total += cant * p.Precio_Unitario;
+                    items++;
+                }
+            });
+
+            totalSpan.textContent = total.toLocaleString(); // Formato moneda
+
+            // Habilitar botón solo si hay items y cliente seleccionado
+            verificarBoton(items);
+        }
+
+        clientSelect.addEventListener('change', () => calcularTotal());
+
+        function verificarBoton(items) {
+            const clienteSeleccionado = clientSelect.value;
+            if (items > 0 && clienteSeleccionado !== "") {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = `Confirmar ($${totalSpan.textContent})`;
+            } else {
+                btnSubmit.disabled = true;
+                btnSubmit.textContent = "Confirmar";
+            }
+        }
+
+        // 5. ENVÍO REAL AL SERVIDOR
+        async function enviarPedido() {
+            // Deshabilitar botón para evitar doble clic
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Enviando...";
+
+            // Preparamos el paquete de datos
+            // Primero, buscamos el nombre del cliente seleccionado para guardarlo también
+            const clienteNombre = clientSelect.options[clientSelect.selectedIndex].text;
+
+            // Convertimos el carrito (objeto) a una lista limpia para el Excel
+            const itemsArray = [];
+            let totalVenta = 0;
+
+            productos.forEach(p => {
+                const cant = carrito[p.ID_Producto] || 0;
+                if (cant > 0) {
+                    const subtotal = cant * p.Precio_Unitario;
+                    totalVenta += subtotal;
+                    itemsArray.push({
+                        id: p.ID_Producto,
+                        nombre: p.Nombre,
+                        cantidad: cant,
+                        subtotal: subtotal
+                    });
+                }
+            });
+
+            const pedidoFinal = {
+                cliente: {
+                    id: clientSelect.value,
+                    nombre: clienteNombre
+                },
+                total: totalVenta,
+                items: itemsArray
+            };
+
+            // ¡Fuego! Enviamos a Google
+            try {
+                // TRUCO PARA EVITAR BLOQUEO CORS:
+                // 1. Usamos mode: 'no-cors'
+                // 2. Enviamos los datos como texto plano
+                // NOTA: Al usar no-cors, la respuesta es opaca (status 0, tipo 'opaque'). 
+                // No podemos leer el contenido de la respuesta, pero si la red falla, caerá al catch.
+
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: {
+                        "Content-Type": "text/plain"
+                    },
+                    body: JSON.stringify(pedidoFinal)
+                });
+
+                // Si llegamos aquí sin error, asumimos que se envió.
+                console.log("Enviado correctamente (respuesta opaca).");
+                alert("✅ ¡Pedido enviado con éxito!");
+
+                // Recargar para limpiar el formulario
+                location.reload();
+
+            } catch (error) {
+                console.error("Error envío:", error);
+                alert("❌ Error de red al enviar: " + error.message);
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Reintentar";
+            }
+        }
+
+        // Arrancar
+        iniciarApp();
+
+    </script>
+    <script> if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW registrado', reg)).catch(err => console.log('SW falló', err)); }); } </script>
+
+</body>
+
+</html>
