@@ -110,7 +110,12 @@
                 <button id="btn-install" class="hidden px-3 py-1 bg-[var(--primary)] text-[var(--on-primary)] rounded-full text-xs font-bold shadow-md">
                     Instalar
                 </button>
-                <button onclick="toggleConfig()" class="w-10 h-10 rounded-full hover:bg-black/5 flex items-center justify-center text-[var(--text-main)]">
+                <!-- BOTÓN HISTORIAL -->
+                <button onclick="toggleHistory()" class="w-10 h-10 rounded-full hover:bg-black/5 flex items-center justify-center text-[var(--text-main)]" title="Historial">
+                    <i class="ph ph-clock-counter-clockwise text-2xl"></i>
+                </button>
+                <!-- BOTÓN CONFIG -->
+                <button onclick="toggleConfig()" class="w-10 h-10 rounded-full hover:bg-black/5 flex items-center justify-center text-[var(--text-main)]" title="Configuración">
                     <i class="ph ph-gear text-2xl"></i>
                 </button>
             </div>
@@ -234,7 +239,29 @@
         </div>
     </div>
 
-    <!-- 5. MODAL DE CONFIGURACIÓN -->
+    <!-- 5. MODAL DE HISTORIAL (MEJORADO CON REPETIR) -->
+    <div id="historyModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleHistory()"></div>
+        <div class="relative bg-[var(--surface-container)] w-full max-w-lg rounded-2xl p-0 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            
+            <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-[var(--surface-container)]">
+                <h2 class="text-xl font-bold text-[var(--text-main)]">Historial de Ventas</h2>
+                <button onclick="toggleHistory()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <div id="historyListContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--surface)]">
+                <!-- Lista de historial -->
+            </div>
+            
+            <div class="p-3 bg-[var(--surface-container)] text-center text-xs text-[var(--text-sub)] border-t border-gray-100 dark:border-gray-800">
+                Se muestran los últimos 50 pedidos guardados en este dispositivo.
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. MODAL DE CONFIGURACIÓN -->
     <div id="configModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleConfig()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
@@ -263,9 +290,10 @@
         let state = {
             productos: [],
             clientes: [],
-            carrito: {}, // {ID: Cantidad}
+            carrito: {}, 
             config: { darkMode: false },
-            clienteSeleccionado: null
+            clienteSeleccionado: null,
+            historial: [] 
         };
 
         // --- 2. INICIO Y CARGA DE DATOS ---
@@ -284,6 +312,7 @@
         async function iniciarApp() {
             actualizarEstadoConexion();
             verificarPendientes();
+            cargarHistorialLocal(); 
 
             try {
                 const [resProd, resCli] = await Promise.all([
@@ -316,7 +345,6 @@
 
         function renderizarUI() {
             document.getElementById('loadingState').style.display = 'none';
-            // No renderizamos selector de clientes por defecto, esperamos a que el usuario busque
             renderizarProductos();
         }
 
@@ -340,7 +368,7 @@
             if (filtrados.length === 0) {
                 dropdown.innerHTML = `<li class="p-3 text-[var(--text-sub)] text-sm text-center">No se encontraron clientes</li>`;
             } else {
-                filtrados.slice(0, 50).forEach(c => { // Límite de 50 para rendimiento
+                filtrados.slice(0, 50).forEach(c => { 
                     const li = document.createElement('li');
                     li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex flex-col";
                     li.innerHTML = `
@@ -356,17 +384,13 @@
         }
 
         function seleccionarCliente(cliente) {
-            // Guardar en inputs ocultos y mostrar nombre
             document.getElementById('client-search-input').value = `${cliente.Nombre_Negocio} (${cliente.Dueño})`;
             document.getElementById('selected-client-id').value = cliente.ID_Cliente;
             document.getElementById('selected-client-phone').value = cliente.Telefono || "";
             document.getElementById('selected-client-name').value = cliente.Nombre_Negocio;
             
-            // UI
             document.getElementById('client-dropdown').classList.add('hidden');
             document.getElementById('clear-client-btn').classList.remove('hidden');
-            
-            // Resaltar que ya se eligió
             document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
         }
 
@@ -379,12 +403,10 @@
             document.getElementById('clear-client-btn').classList.add('hidden');
             document.getElementById('client-search-input').classList.remove('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
             document.getElementById('client-dropdown').classList.add('hidden');
-            
             document.getElementById('client-search-input').focus();
         }
 
         function cerrarDropdowns(e) {
-            // Si el click no fue dentro del buscador de clientes, cerrar dropdown
             const container = document.getElementById('client-search-input').parentElement.parentElement;
             if (!container.contains(e.target)) {
                 document.getElementById('client-dropdown').classList.add('hidden');
@@ -443,7 +465,6 @@
         function cambiarCant(id, delta) {
             if (!state.carrito[id]) state.carrito[id] = 0;
             state.carrito[id] += delta;
-            
             if (state.carrito[id] <= 0) delete state.carrito[id];
 
             const busqueda = document.getElementById('searchInput').value;
@@ -475,7 +496,6 @@
                 footer.classList.add('translate-y-full');
                 document.getElementById('cartModal').classList.add('hidden');
             }
-
             renderizarListaModal();
         }
 
@@ -505,8 +525,7 @@
         }
 
         function toggleCartModal() {
-            const modal = document.getElementById('cartModal');
-            modal.classList.toggle('hidden');
+            document.getElementById('cartModal').classList.toggle('hidden');
         }
 
         // --- 4. ENVÍO DE PEDIDOS ---
@@ -514,14 +533,12 @@
             const btn = document.getElementById('btn-submit');
             const btnQuick = document.getElementById('btn-quick-submit'); 
             
-            // --- NUEVA VALIDACIÓN PARA BUSCADOR INTELIGENTE ---
             const clienteId = document.getElementById('selected-client-id').value;
             const clienteNombre = document.getElementById('selected-client-name').value;
             const clienteTel = document.getElementById('selected-client-phone').value;
             
             if (!clienteId) {
                 alert("⚠️ Por favor BUSCA y SELECCIONA un cliente arriba.");
-                
                 const modal = document.getElementById('cartModal');
                 if(!modal.classList.contains('hidden')) { toggleCartModal(); }
                 
@@ -554,10 +571,15 @@
                 }
             });
 
+            // Generar ID único para historial
+            const pedidoIdLocal = Date.now();
+
             const pedidoFinal = {
+                id_interno: pedidoIdLocal, // ID único local
                 cliente: {
                     id: clienteId,
-                    nombre: clienteNombre
+                    nombre: clienteNombre,
+                    telefono: clienteTel
                 },
                 total: totalVenta,
                 items: itemsArray,
@@ -570,7 +592,11 @@
                         method: "POST",
                         body: JSON.stringify(pedidoFinal)
                     });
+                    
+                    // Si se envía bien, guardar en historial como ENVIADO
+                    guardarEnHistorial(pedidoFinal, 'Enviado');
                     manejarExito(pedidoFinal, clienteTel);
+                    
                 } catch (error) {
                     guardarPedidoOffline(pedidoFinal);
                 }
@@ -583,18 +609,142 @@
             alert("✅ Pedido Registrado Exitosamente");
 
             if(confirm("¿Deseas enviar el comprobante por WhatsApp?")) {
-                const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
-                const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
-                const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
-                
-                const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
-                window.open(url, '_blank');
+                abrirWhatsapp(pedido, telefono);
             }
             
             location.reload();
         }
 
-        // --- 5. OFFLINE & SYNC ---
+        function abrirWhatsapp(pedido, telefono) {
+            const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
+            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
+            const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
+            const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, '_blank');
+        }
+
+        // --- 5. LÓGICA DE HISTORIAL Y REPETIR PEDIDO ---
+        function cargarHistorialLocal() {
+            const historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
+            state.historial = historial;
+        }
+
+        function guardarEnHistorial(pedido, estado = 'Enviado') {
+            const historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
+            pedido.estado = estado;
+            historial.unshift(pedido);
+            if(historial.length > 50) historial.pop();
+            localStorage.setItem('db_historial', JSON.stringify(historial));
+            state.historial = historial;
+        }
+
+        function toggleHistory() {
+            const modal = document.getElementById('historyModal');
+            if (modal.classList.contains('hidden')) {
+                renderizarHistorial();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderizarHistorial() {
+            const container = document.getElementById('historyListContainer');
+            container.innerHTML = "";
+
+            if (state.historial.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-[var(--text-sub)] opacity-70">No hay ventas registradas aún.</div>`;
+                return;
+            }
+
+            state.historial.forEach(p => {
+                const el = document.createElement('div');
+                el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
+                const statusColor = p.estado === 'Pendiente' ? 'text-yellow-600 bg-yellow-100' : 'text-green-600 bg-green-100';
+
+                // Usamos ID interno para identificar el pedido al repetir
+                el.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="font-bold text-[var(--text-main)] text-sm">${p.cliente.nombre}</div>
+                            <div class="text-xs text-[var(--text-sub)]">${p.fechaLocal}</div>
+                        </div>
+                        <span class="text-xs font-bold px-2 py-1 rounded-md ${statusColor}">${p.estado}</span>
+                    </div>
+                    <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
+                        <div class="text-xs text-[var(--text-sub)]">${p.items.length} productos</div>
+                        <div class="font-bold text-[var(--primary)]">$${p.total.toLocaleString()}</div>
+                    </div>
+                    <div class="mt-2 pt-2 flex gap-2">
+                         <button onclick='repetirPedido(${p.id_interno})' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
+                            <i class="ph-bold ph-arrows-clockwise"></i> Repetir
+                        </button>
+                        <button onclick='abrirWhatsappHistorial(${p.id_interno})' class="flex-1 bg-green-500 text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:bg-green-600 transition">
+                            <i class="ph-bold ph-whatsapp-logo"></i> Reenviar
+                        </button>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function repetirPedido(idInterno) {
+            const pedido = state.historial.find(p => p.id_interno === idInterno);
+            if (!pedido) return;
+
+            if(!confirm(`¿Cargar los ${pedido.items.length} productos de este pedido al carrito actual?`)) return;
+
+            let agregados = 0;
+            let noEncontrados = 0;
+
+            pedido.items.forEach(itemPast => {
+                // Verificar si el producto aun existe en la base de datos local
+                const prodActual = state.productos.find(p => p.ID_Producto === itemPast.id);
+                
+                if (prodActual) {
+                    if (!state.carrito[prodActual.ID_Producto]) state.carrito[prodActual.ID_Producto] = 0;
+                    state.carrito[prodActual.ID_Producto] += itemPast.cantidad;
+                    agregados++;
+                } else {
+                    noEncontrados++;
+                }
+            });
+            
+            // Si el carrito estaba vacío y repetimos pedido, podríamos cargar el cliente también
+            const clienteIdActual = document.getElementById('selected-client-id').value;
+            if(!clienteIdActual) {
+                 // Autoseleccionar cliente del pedido anterior
+                 const clienteEnDB = state.clientes.find(c => c.ID_Cliente == pedido.cliente.id);
+                 if(clienteEnDB) {
+                     seleccionarCliente(clienteEnDB);
+                 }
+            }
+
+            // Actualizar UI
+            actualizarCarritoUI();
+            renderizarProductos(document.getElementById('searchInput').value);
+            toggleHistory(); // Cerrar historial
+
+            // Feedback
+            if(noEncontrados > 0) {
+                alert(`✅ Se agregaron ${agregados} productos.\n⚠️ ${noEncontrados} productos ya no existen en el catálogo.`);
+            } else {
+                alert(`✅ ¡Listo! Productos cargados.`);
+            }
+            
+            // Abrir carrito
+            toggleCartModal();
+        }
+
+        // Wrapper para abrir whatsapp desde historial buscando por ID
+        function abrirWhatsappHistorial(idInterno) {
+            const pedido = state.historial.find(p => p.id_interno === idInterno);
+            if(pedido) {
+                abrirWhatsapp(pedido, pedido.cliente.telefono);
+            }
+        }
+
+        // --- 6. OFFLINE & SYNC ---
         function actualizarEstadoConexion() {
             const offlineBanner = document.getElementById('offline-status');
             if (!navigator.onLine) {
@@ -610,6 +760,8 @@
             pendientes.push(pedido);
             localStorage.setItem('cola_pedidos', JSON.stringify(pendientes));
             
+            guardarEnHistorial(pedido, 'Pendiente');
+
             alert("📶 SIN CONEXIÓN: Pedido guardado en el celular.\nSe enviará cuando recuperes señal.");
             location.reload();
         }
@@ -637,21 +789,35 @@
             let enviados = 0;
             const errores = [];
 
+            let historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
+
             for (const pedido of pendientes) {
                 try {
                     await fetch(API_URL, { method: "POST", body: JSON.stringify(pedido) });
                     enviados++;
+                    
+                    const idx = historial.findIndex(h => h.id_interno === pedido.id_interno);
+                    if(idx !== -1) {
+                        historial[idx].estado = 'Enviado';
+                    } else {
+                        pedido.estado = 'Enviado';
+                        historial.unshift(pedido);
+                    }
+
                 } catch (e) {
                     errores.push(pedido);
                 }
             }
+            
+            localStorage.setItem('db_historial', JSON.stringify(historial));
+            state.historial = historial;
 
             localStorage.setItem('cola_pedidos', JSON.stringify(errores));
             alert(`Sincronización: ${enviados} enviados, ${errores.length} fallidos.`);
             location.reload();
         }
 
-        // --- 6. UTILS & UI CONFIG ---
+        // --- 7. UTILS & UI CONFIG ---
         function clearInput() {
             document.getElementById('searchInput').value = '';
             renderizarProductos();
