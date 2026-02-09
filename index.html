@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Distribuidora Lácteos</title>
     
-    <!-- --- CONEXIÓN PWA (Estructura Plana) --- -->
+    <!-- --- CONEXIÓN PWA --- -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0066cc">
     <link rel="apple-touch-icon" href="./icon-192.png">
@@ -15,6 +15,8 @@
         :root {
             --primary: #0066cc;
             --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
             --bg: #f4f4f9;
             --card-bg: #ffffff;
             --text: #333333;
@@ -24,7 +26,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg); 
             margin: 0; 
-            padding-bottom: 100px;
+            padding-bottom: 120px;
             color: var(--text);
         }
 
@@ -39,6 +41,17 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+        }
+
+        /* Barra de estado Offline */
+        #offline-status {
+            background-color: var(--warning);
+            color: #333;
+            text-align: center;
+            padding: 5px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: none;
         }
         
         .header-top {
@@ -60,6 +73,26 @@
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             display: none; 
+        }
+
+        /* Botón de Sincronización (Pendientes) */
+        #sync-banner {
+            background-color: var(--danger);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            display: none;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
         }
 
         .client-selector { 
@@ -139,11 +172,20 @@
 </head>
 <body>
 
+    <!-- Aviso Offline -->
+    <div id="offline-status">⚠️ MODO SIN CONEXIÓN</div>
+
     <header>
         <div class="header-top">
             <h1>Distribuidora Lácteos</h1>
             <button id="btn-install">📲 Instalar</button>
         </div>
+        
+        <!-- Botón para subir pedidos pendientes -->
+        <div id="sync-banner" onclick="sincronizarPendientes()">
+            📡 Tienes <span id="sync-count">0</span> pedidos pendientes. ¡Toca para enviar!
+        </div>
+
         <select id="client-select" class="client-selector">
             <option value="">Cargando clientes...</option>
         </select>
@@ -169,9 +211,17 @@
         const clientSelect = document.getElementById('client-select');
         const totalSpan = document.getElementById('total-amount');
         const btnSubmit = document.getElementById('btn-submit');
+        const offlineStatus = document.getElementById('offline-status');
+        const syncBanner = document.getElementById('sync-banner');
+        const syncCount = document.getElementById('sync-count');
 
+        // --- 1. INICIO INTELIGENTE (RED O CACHÉ) ---
         async function iniciarApp() {
+            verificarConexion(); // Chequear estado visual
+            verificarPendientes(); // Chequear si hay pedidos viejos
+
             try {
+                // Intentamos conectar a internet primero (Network First)
                 const [resProd, resCli] = await Promise.all([
                     fetch(API_URL + "?action=getProductos"),
                     fetch(API_URL + "?action=getClientes")
@@ -180,21 +230,171 @@
                 productos = await resProd.json();
                 const clientes = await resCli.json();
 
+                // ¡Éxito! Guardamos en memoria por si se corta la luz
+                localStorage.setItem('db_productos', JSON.stringify(productos));
+                localStorage.setItem('db_clientes', JSON.stringify(clientes));
+                
                 renderizarClientes(clientes);
                 renderizarProductos(productos);
+
             } catch (error) {
-                console.error(error);
-                container.innerHTML = `<div class="error"><p>⚠️ Error de conexión.</p></div>`;
+                console.log("Modo Offline activado: Usando datos locales");
+                
+                // Si falla internet, buscamos en la memoria del celu
+                const cachedProd = localStorage.getItem('db_productos');
+                const cachedCli = localStorage.getItem('db_clientes');
+
+                if (cachedProd && cachedCli) {
+                    productos = JSON.parse(cachedProd);
+                    const clientes = JSON.parse(cachedCli);
+                    
+                    renderizarClientes(clientes);
+                    renderizarProductos(productos);
+                    mostrarOffline(true); // Aviso visual
+                } else {
+                    container.innerHTML = `<div class="error"><p>⚠️ No hay conexión y no hay datos guardados.</p><p>Conéctate una vez para descargar el catálogo.</p></div>`;
+                }
             }
         }
 
+        // --- 2. LÓGICA DE ENVÍO CON RESPALDO OFFLINE ---
+        async function enviarPedido() {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Procesando...";
+
+            // Preparar datos
+            const itemsArray = [];
+            let totalVenta = 0;
+            productos.forEach(p => {
+                const cant = carrito[p.ID_Producto] || 0;
+                if (cant > 0) {
+                    const subtotal = cant * p.Precio_Unitario;
+                    totalVenta += subtotal;
+                    itemsArray.push({
+                        id: p.ID_Producto,
+                        nombre: p.Nombre,
+                        cantidad: cant,
+                        subtotal: subtotal
+                    });
+                }
+            });
+
+            const clienteOption = clientSelect.options[clientSelect.selectedIndex];
+            const pedidoFinal = {
+                cliente: {
+                    id: clientSelect.value,
+                    nombre: clienteOption.text
+                },
+                total: totalVenta,
+                items: itemsArray,
+                fechaLocal: new Date().toLocaleString() // Guardamos fecha por si se envía mañana
+            };
+
+            // Intentar Enviar
+            if (navigator.onLine) {
+                try {
+                    await fetch(API_URL, {
+                        method: "POST",
+                        body: JSON.stringify(pedidoFinal)
+                    });
+                    
+                    manejarExito(pedidoFinal, clienteOption.dataset.tel);
+
+                } catch (error) {
+                    // Si falla el fetch aunque el navegador diga que es online
+                    guardarPedidoOffline(pedidoFinal);
+                }
+            } else {
+                // Si el navegador sabe que está offline
+                guardarPedidoOffline(pedidoFinal);
+            }
+        }
+
+        function manejarExito(pedido, telefono) {
+            alert("✅ Pedido enviado correctamente");
+            
+            // Lógica WhatsApp (Opcional)
+            const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
+            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\nTotal: $${pedido.total}`;
+            const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
+            
+            if(confirm("¿Abrir WhatsApp?")) {
+                const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+                window.open(url, '_blank');
+            }
+            
+            location.reload();
+        }
+
+        // --- 3. SISTEMA DE COLA OFFLINE ---
+        function guardarPedidoOffline(pedido) {
+            // Recuperamos la cola actual
+            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            pendientes.push(pedido);
+            localStorage.setItem('cola_pedidos', JSON.stringify(pendientes));
+
+            alert("📶 SIN CONEXIÓN: El pedido se guardó en el celular.\nToca el botón rojo arriba cuando recuperes señal.");
+            location.reload();
+        }
+
+        function verificarPendientes() {
+            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            if (pendientes.length > 0) {
+                syncBanner.style.display = 'block';
+                syncCount.textContent = pendientes.length;
+            } else {
+                syncBanner.style.display = 'none';
+            }
+        }
+
+        async function sincronizarPendientes() {
+            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            
+            if (pendientes.length === 0) return;
+            if (!navigator.onLine) {
+                alert("⚠️ Aún no tienes conexión a internet.");
+                return;
+            }
+
+            if(!confirm(`¿Enviar los ${pendientes.length} pedidos pendientes ahora?`)) return;
+
+            syncBanner.textContent = "📡 Enviando pedidos... por favor espera...";
+            
+            // Enviamos uno por uno
+            let enviados = 0;
+            const errores = [];
+
+            for (const pedido of pendientes) {
+                try {
+                    await fetch(API_URL, {
+                        method: "POST",
+                        body: JSON.stringify(pedido)
+                    });
+                    enviados++;
+                } catch (e) {
+                    errores.push(pedido); // Si falla, lo guardamos para intentar luego
+                }
+            }
+
+            // Actualizamos la cola con los que fallaron (si hubo)
+            localStorage.setItem('cola_pedidos', JSON.stringify(errores));
+
+            if (errores.length === 0) {
+                alert("✅ ¡Todos los pedidos pendientes se enviaron con éxito!");
+                location.reload();
+            } else {
+                alert(`⚠️ Se enviaron ${enviados}, pero ${errores.length} fallaron. Intenta de nuevo.`);
+                verificarPendientes();
+            }
+        }
+
+        // --- UTILIDADES ---
         function renderizarClientes(lista) {
             clientSelect.innerHTML = '<option value="">-- Selecciona un Cliente --</option>';
             lista.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.ID_Cliente; 
                 opt.textContent = `${c.Nombre_Negocio} (${c.Dueño})`;
-                // --- NUEVO: Guardamos el teléfono en un atributo oculto ---
                 opt.dataset.tel = c.Telefono || ""; 
                 clientSelect.appendChild(opt);
             });
@@ -259,79 +459,18 @@
 
         clientSelect.addEventListener('change', () => calcularTotal());
 
-        async function enviarPedido() {
-            btnSubmit.disabled = true;
-            btnSubmit.textContent = "Enviando...";
+        // Detectar cambios de conexión en vivo
+        window.addEventListener('online', () => {
+            mostrarOffline(false);
+            verificarPendientes(); // Intenta sincronizar apenas vuelve internet
+        });
+        window.addEventListener('offline', () => mostrarOffline(true));
 
-            const itemsArray = [];
-            let totalVenta = 0;
-
-            // Recolectar datos del carrito
-            productos.forEach(p => {
-                const cant = carrito[p.ID_Producto] || 0;
-                if (cant > 0) {
-                    const subtotal = cant * p.Precio_Unitario;
-                    totalVenta += subtotal;
-                    itemsArray.push({
-                        id: p.ID_Producto,
-                        nombre: p.Nombre,
-                        cantidad: cant,
-                        subtotal: subtotal
-                    });
-                }
-            });
-
-            // Datos del cliente
-            const clienteOption = clientSelect.options[clientSelect.selectedIndex];
-            const clienteNombre = clienteOption.text;
-            const clienteTelefono = clienteOption.dataset.tel; // Recuperamos el teléfono
-
-            const pedidoFinal = {
-                cliente: {
-                    id: clientSelect.value,
-                    nombre: clienteNombre
-                },
-                total: totalVenta,
-                items: itemsArray
-            };
-
-            try {
-                // Enviar a Google Sheets
-                await fetch(API_URL, {
-                    method: "POST",
-                    body: JSON.stringify(pedidoFinal)
-                });
-                
-                // --- NUEVO: Preparar Mensaje de WhatsApp ---
-                const listaItems = itemsArray.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
-                const mensaje = `Hola *${clienteNombre}*! 👋\n\nTe confirmamos tu pedido:\n${listaItems}\n\n*Total: $${totalVenta.toLocaleString()}*\n\n¡Gracias por tu compra! 🥛🧀`;
-                
-                // Codificar para URL
-                const mensajeEncoded = encodeURIComponent(mensaje);
-                
-                // Definir enlace (Si hay teléfono directo, si no, abrir para elegir contacto)
-                let urlWhatsapp = "";
-                if (clienteTelefono) {
-                    // Limpiamos el teléfono de espacios o guiones
-                    const telLimpio = clienteTelefono.replace(/[^0-9]/g, '');
-                    urlWhatsapp = `https://wa.me/${telLimpio}?text=${mensajeEncoded}`;
-                } else {
-                    urlWhatsapp = `https://wa.me/?text=${mensajeEncoded}`;
-                }
-
-                // Confirmación al preventista
-                if(confirm("✅ Pedido guardado. ¿Enviar comprobante por WhatsApp?")) {
-                    window.open(urlWhatsapp, '_blank');
-                }
-                
-                location.reload(); 
-
-            } catch (error) {
-                console.error(error);
-                alert("❌ Error de conexión. Inténtalo de nuevo.");
-                btnSubmit.disabled = false;
-                btnSubmit.textContent = "Reintentar";
-            }
+        function mostrarOffline(isOffline) {
+            offlineStatus.style.display = isOffline ? 'block' : 'none';
+        }
+        function verificarConexion() {
+            mostrarOffline(!navigator.onLine);
         }
 
         iniciarApp();
