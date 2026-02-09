@@ -145,16 +145,18 @@
     <div id="cartFooter" class="fixed bottom-0 left-0 w-full z-40 transform translate-y-full transition-transform duration-300">
         <div class="bg-[var(--surface-container)] border-t border-gray-200 dark:border-gray-800 rounded-t-[20px] shadow-[0_-5px_20px_rgba(0,0,0,0.1)] p-4 pb-6">
             <div class="max-w-3xl mx-auto flex items-center justify-between">
+                <!-- Click en texto abre detalle (Opcional para revisar) -->
                 <div class="flex flex-col cursor-pointer" onclick="toggleCartModal()">
                     <div class="flex items-center gap-2">
                         <span class="bg-[var(--primary)] text-white text-[10px] font-bold px-2 py-0.5 rounded-md" id="itemCount">0</span>
-                        <span class="text-xs text-[var(--text-sub)] font-medium">VER PEDIDO <i class="ph-bold ph-caret-up"></i></span>
+                        <span class="text-xs text-[var(--text-sub)] font-medium">REVISAR <i class="ph-bold ph-caret-up"></i></span>
                     </div>
                     <div class="text-2xl font-bold text-[var(--primary)]" id="totalAmount">$0</div>
                 </div>
                 
-                <button onclick="toggleCartModal()" class="bg-[var(--primary)] text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition">
-                    Ver Carrito
+                <!-- BOTÓN CONFIRMAR DIRECTO -->
+                <button id="btn-quick-submit" onclick="enviarPedido()" class="bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-green-500/30 active:scale-95 transition flex items-center gap-2">
+                    Confirmar <i class="ph-bold ph-check-circle text-xl"></i>
                 </button>
             </div>
         </div>
@@ -189,7 +191,7 @@
                 
                 <div class="grid grid-cols-1 gap-3">
                     <button id="btn-submit" onclick="enviarPedido()" class="h-14 bg-green-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
-                        <i class="ph-fill ph-whatsapp-logo text-xl"></i> Confirmar y Enviar
+                        <i class="ph-bold ph-check"></i> Confirmar Pedido
                     </button>
                 </div>
             </div>
@@ -417,20 +419,35 @@
             modal.classList.toggle('hidden');
         }
 
-        // --- 4. ENVÍO DE PEDIDOS (LÓGICA DEL CÓDIGO VIEJO INTEGRADA) ---
+        // --- 4. ENVÍO DE PEDIDOS ---
         async function enviarPedido() {
             const btn = document.getElementById('btn-submit');
+            const btnQuick = document.getElementById('btn-quick-submit'); // Botón barra inferior
             const selectCli = document.getElementById('client-select');
             
+            // VALIDACIÓN MEJORADA
             if (selectCli.value === "") {
                 alert("⚠️ Por favor selecciona un cliente arriba antes de enviar.");
-                toggleCartModal(); // Cerrar carrito para que vea el selector
+                
+                // Si el modal está abierto, lo cerramos para que vea el selector
+                const modal = document.getElementById('cartModal');
+                if(!modal.classList.contains('hidden')) {
+                     toggleCartModal(); 
+                }
+                
+                // Hacemos scroll arriba y foco en el selector
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 selectCli.focus();
+                // Resaltamos visualmente el selector
+                selectCli.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => selectCli.classList.remove('ring-2', 'ring-red-500'), 2000);
                 return;
             }
 
-            btn.disabled = true;
-            btn.innerHTML = `<i class="ph-duotone ph-spinner animate-spin text-xl"></i> Enviando...`;
+            // Estado de carga en ambos botones
+            const loadingText = `<i class="ph-duotone ph-spinner animate-spin text-xl"></i> Enviando...`;
+            if(btn) { btn.disabled = true; btn.innerHTML = loadingText; }
+            if(btnQuick) { btnQuick.disabled = true; btnQuick.innerHTML = loadingText; }
 
             // Preparar datos
             const itemsArray = [];
@@ -478,15 +495,18 @@
         }
 
         function manejarExito(pedido, telefono) {
-            // WhatsApp Logic
-            const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
-            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
-            const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
-            
-            const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
-            
             alert("✅ Pedido Registrado Exitosamente");
-            window.open(url, '_blank');
+
+            // WhatsApp Logic (Opcional)
+            if(confirm("¿Deseas enviar el comprobante por WhatsApp?")) {
+                const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
+                const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
+                const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
+                
+                const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+                window.open(url, '_blank');
+            }
+            
             location.reload();
         }
 
