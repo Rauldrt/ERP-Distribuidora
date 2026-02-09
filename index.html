@@ -37,16 +37,39 @@
             top: 0; 
             z-index: 100; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         
+        /* Contenedor del título y botón instalar */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         header h1 { margin: 0; font-size: 1.1rem; font-weight: normal; }
+
+        /* Estilo del botón de instalación manual */
+        #btn-install {
+            background-color: white;
+            color: var(--primary);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            display: none; /* Oculto por defecto */
+        }
 
         .client-selector { 
             width: 100%; 
             padding: 10px; 
             border-radius: 6px; 
             border: none; 
-            margin-top: 10px;
             font-size: 1rem;
             background: white;
         }
@@ -120,7 +143,11 @@
 <body>
 
     <header>
-        <h1>Distribuidora Lácteos</h1>
+        <div class="header-top">
+            <h1>Distribuidora Lácteos</h1>
+            <!-- Botón de instalación manual (se muestra con JS) -->
+            <button id="btn-install">📲 Instalar</button>
+        </div>
         <select id="client-select" class="client-selector">
             <option value="">Cargando clientes...</option>
         </select>
@@ -137,7 +164,7 @@
 
     <script>
         // --- ⚠️ PEGA TU URL DE APPS SCRIPT AQUÍ ---
-        const API_URL = "https://script.google.com/macros/s/AKfycbyD1aKqu_YRB7E3T5nxXiLnd0zx7lQ9lV0AUbpbjWmWgLMdVqiDwz4HXPYi-o9Lci0QSg/exec"; 
+        const API_URL = "https://script.google.com/macros/s/TU_URL_AQUI/exec"; 
 
         let productos = [];
         let carrito = {}; 
@@ -281,21 +308,52 @@
         iniciarApp();
     </script>
 
-    <!-- --- REGISTRO DEL SERVICE WORKER (Depurado) --- -->
+    <!-- --- LOGICA DE INSTALACIÓN PWA Y DEPURACIÓN --- -->
     <script>
+        // 1. Registro del Service Worker con LOGS
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
-                        console.log('✅ SW Registrado. Scope:', registration.scope);
-                    })
-                    .catch(err => {
-                        console.error('❌ Falló el registro del SW:', err);
-                    });
+                    .then(reg => console.log('✅ [PWA] Service Worker registrado. Scope:', reg.scope))
+                    .catch(err => console.error('❌ [PWA] Falló el SW:', err));
             });
         }
+
+        // 2. Lógica del Botón de Instalación
+        let deferredPrompt;
+        const installBtn = document.getElementById('btn-install');
+
+        // Escuchamos el evento mágico del navegador
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('🎉 [PWA] ¡El navegador dice que la App es instalable!');
+            // Prevenimos que el navegador muestre su barra automática (opcional)
+            e.preventDefault();
+            // Guardamos el evento para lanzarlo cuando queramos
+            deferredPrompt = e;
+            // Mostramos nuestro botón
+            installBtn.style.display = 'block';
+        });
+
+        // Al hacer clic en el botón
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Lanzamos la pregunta nativa
+                deferredPrompt.prompt();
+                // Esperamos la respuesta del usuario
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`[PWA] El usuario decidió: ${outcome}`);
+                // Limpiamos
+                deferredPrompt = null;
+                // Ocultamos botón
+                installBtn.style.display = 'none';
+            }
+        });
+
+        // Evento cuando ya se instaló
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ [PWA] ¡La App fue instalada exitosamente!');
+        });
     </script>
 
 </body>
 </html>
-
