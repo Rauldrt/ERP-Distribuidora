@@ -18,7 +18,7 @@
     <style>
         /* CONFIGURACIÓN DE TEMA VISUAL */
         :root {
-            --primary: #0066cc; /* Tu azul original */
+            --primary: #0066cc;
             --on-primary: #FFFFFF;
             --primary-container: #dcecfc;
             --surface: #F4FBF9;
@@ -71,12 +71,19 @@
         .sync-banner {
             animation: pulse-red 2s infinite;
         }
+
+        /* Dropdown Clientes */
+        .client-dropdown {
+            max-height: 250px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
     </style>
 </head>
-<body class="h-[100dvh] flex flex-col overflow-hidden">
+<body class="h-[100dvh] flex flex-col overflow-hidden" onclick="cerrarDropdowns(event)">
 
     <!-- 1. BARRA SUPERIOR (HEADER) -->
-    <header class="shrink-0 z-20 flex flex-col gap-2 pt-2 pb-2 bg-[var(--surface)] transition-colors">
+    <header class="shrink-0 z-30 flex flex-col gap-2 pt-2 pb-2 bg-[var(--surface)] transition-colors shadow-sm">
         
         <!-- Aviso Offline / Sincronización -->
         <div id="offline-status" class="hidden bg-yellow-400 text-black text-center text-xs font-bold py-1">
@@ -109,22 +116,51 @@
             </div>
         </div>
 
-        <!-- Barra de Búsqueda y Clientes -->
-        <div class="px-4 space-y-2">
-            <!-- Selector de Clientes -->
-            <select id="client-select" class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)]">
-                <option value="">Cargando clientes...</option>
-            </select>
+        <!-- AREA DE BÚSQUEDAS -->
+        <div class="px-4 space-y-2 pb-2">
+            
+            <!-- BUSCADOR INTELIGENTE DE CLIENTES -->
+            <div class="relative z-50">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="ph ph-users text-[var(--text-sub)] text-lg"></i>
+                    </div>
+                    
+                    <input type="text" id="client-search-input" 
+                        class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm" 
+                        placeholder="Buscar Cliente (Nombre, Dueño...)" 
+                        autocomplete="off"
+                        oninput="filtrarClientes(this.value)"
+                        onfocus="filtrarClientes(this.value, true)">
+                    
+                    <!-- ID Oculto del cliente seleccionado -->
+                    <input type="hidden" id="selected-client-id">
+                    <input type="hidden" id="selected-client-phone">
+                    <input type="hidden" id="selected-client-name">
 
-            <!-- Buscador Productos -->
-            <div class="md-search-bar h-12 flex items-center px-4 gap-3">
-                <i class="ph ph-magnifying-glass text-[var(--text-sub)] text-xl"></i>
-                <input type="text" id="searchInput" placeholder="Buscar leche, queso..." 
-                       class="bg-transparent flex-1 outline-none text-[16px] text-[var(--text-main)] placeholder-[var(--text-sub)]"
-                       autocomplete="off">
-                <button id="clearSearch" class="hidden text-[var(--text-sub)]" onclick="clearInput()">
-                    <i class="ph-fill ph-x-circle text-xl"></i>
-                </button>
+                    <!-- Botón limpiar -->
+                    <button id="clear-client-btn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--text-sub)] hidden" onclick="resetCliente()">
+                        <i class="ph-fill ph-x-circle text-lg hover:text-red-500 transition"></i>
+                    </button>
+                </div>
+
+                <!-- Lista Desplegable -->
+                <ul id="client-dropdown" class="absolute w-full mt-1 bg-[var(--surface-container)] border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl client-dropdown hidden">
+                    <!-- Los clientes se inyectan aquí -->
+                </ul>
+            </div>
+
+            <!-- BUSCADOR DE PRODUCTOS -->
+            <div class="relative z-10">
+                <div class="md-search-bar h-12 flex items-center px-4 gap-3">
+                    <i class="ph ph-magnifying-glass text-[var(--text-sub)] text-xl"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar productos..." 
+                           class="bg-transparent flex-1 outline-none text-[16px] text-[var(--text-main)] placeholder-[var(--text-sub)]"
+                           autocomplete="off">
+                    <button id="clearSearch" class="hidden text-[var(--text-sub)]" onclick="clearInput()">
+                        <i class="ph-fill ph-x-circle text-xl"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -145,7 +181,7 @@
     <div id="cartFooter" class="fixed bottom-0 left-0 w-full z-40 transform translate-y-full transition-transform duration-300">
         <div class="bg-[var(--surface-container)] border-t border-gray-200 dark:border-gray-800 rounded-t-[20px] shadow-[0_-5px_20px_rgba(0,0,0,0.1)] p-4 pb-6">
             <div class="max-w-3xl mx-auto flex items-center justify-between">
-                <!-- Click en texto abre detalle (Opcional para revisar) -->
+                <!-- Click en texto abre detalle -->
                 <div class="flex flex-col cursor-pointer" onclick="toggleCartModal()">
                     <div class="flex items-center gap-2">
                         <span class="bg-[var(--primary)] text-white text-[10px] font-bold px-2 py-0.5 rounded-md" id="itemCount">0</span>
@@ -228,7 +264,8 @@
             productos: [],
             clientes: [],
             carrito: {}, // {ID: Cantidad}
-            config: { darkMode: false }
+            config: { darkMode: false },
+            clienteSeleccionado: null
         };
 
         // --- 2. INICIO Y CARGA DE DATOS ---
@@ -249,7 +286,6 @@
             verificarPendientes();
 
             try {
-                // Intentar cargar de internet
                 const [resProd, resCli] = await Promise.all([
                     fetch(API_URL + "?action=getProductos"),
                     fetch(API_URL + "?action=getClientes")
@@ -258,7 +294,6 @@
                 state.productos = await resProd.json();
                 state.clientes = await resCli.json();
 
-                // Guardar respaldo offline
                 localStorage.setItem('db_productos', JSON.stringify(state.productos));
                 localStorage.setItem('db_clientes', JSON.stringify(state.clientes));
 
@@ -266,7 +301,6 @@
 
             } catch (error) {
                 console.log("Modo Offline activado");
-                // Cargar de caché
                 const cachedProd = localStorage.getItem('db_productos');
                 const cachedCli = localStorage.getItem('db_clientes');
 
@@ -282,21 +316,82 @@
 
         function renderizarUI() {
             document.getElementById('loadingState').style.display = 'none';
-            renderizarClientes();
+            // No renderizamos selector de clientes por defecto, esperamos a que el usuario busque
             renderizarProductos();
         }
 
-        function renderizarClientes() {
-            const select = document.getElementById('client-select');
-            select.innerHTML = '<option value="">-- Selecciona un Cliente --</option>';
-            state.clientes.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.ID_Cliente;
-                opt.textContent = `${c.Nombre_Negocio} (${c.Dueño})`;
-                opt.dataset.tel = c.Telefono || "";
-                select.appendChild(opt);
+        // --- 2.5 NUEVO SISTEMA DE BÚSQUEDA DE CLIENTES ---
+        function filtrarClientes(filtro, mostrarTodos = false) {
+            const dropdown = document.getElementById('client-dropdown');
+            dropdown.innerHTML = "";
+            
+            if (!filtro && !mostrarTodos) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            const textoFiltro = (filtro || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            
+            const filtrados = state.clientes.filter(c => {
+                const textoCliente = `${c.Nombre_Negocio} ${c.Dueño} ${c.ID_Cliente}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return mostrarTodos || textoCliente.includes(textoFiltro);
             });
+
+            if (filtrados.length === 0) {
+                dropdown.innerHTML = `<li class="p-3 text-[var(--text-sub)] text-sm text-center">No se encontraron clientes</li>`;
+            } else {
+                filtrados.slice(0, 50).forEach(c => { // Límite de 50 para rendimiento
+                    const li = document.createElement('li');
+                    li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex flex-col";
+                    li.innerHTML = `
+                        <span class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio}</span>
+                        <span class="text-xs text-[var(--text-sub)]">${c.Dueño} | ID: ${c.ID_Cliente}</span>
+                    `;
+                    li.onclick = () => seleccionarCliente(c);
+                    dropdown.appendChild(li);
+                });
+            }
+
+            dropdown.classList.remove('hidden');
         }
+
+        function seleccionarCliente(cliente) {
+            // Guardar en inputs ocultos y mostrar nombre
+            document.getElementById('client-search-input').value = `${cliente.Nombre_Negocio} (${cliente.Dueño})`;
+            document.getElementById('selected-client-id').value = cliente.ID_Cliente;
+            document.getElementById('selected-client-phone').value = cliente.Telefono || "";
+            document.getElementById('selected-client-name').value = cliente.Nombre_Negocio;
+            
+            // UI
+            document.getElementById('client-dropdown').classList.add('hidden');
+            document.getElementById('clear-client-btn').classList.remove('hidden');
+            
+            // Resaltar que ya se eligió
+            document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
+        }
+
+        function resetCliente() {
+            document.getElementById('client-search-input').value = "";
+            document.getElementById('selected-client-id').value = "";
+            document.getElementById('selected-client-phone').value = "";
+            document.getElementById('selected-client-name').value = "";
+            
+            document.getElementById('clear-client-btn').classList.add('hidden');
+            document.getElementById('client-search-input').classList.remove('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
+            document.getElementById('client-dropdown').classList.add('hidden');
+            
+            document.getElementById('client-search-input').focus();
+        }
+
+        function cerrarDropdowns(e) {
+            // Si el click no fue dentro del buscador de clientes, cerrar dropdown
+            const container = document.getElementById('client-search-input').parentElement.parentElement;
+            if (!container.contains(e.target)) {
+                document.getElementById('client-dropdown').classList.add('hidden');
+            }
+        }
+
+        // --- RESTO DE LÓGICA (PRODUCTOS, CARRITO, ENVIO) ---
 
         function renderizarProductos(filtro = "") {
             const lista = document.getElementById('productList');
@@ -351,7 +446,6 @@
             
             if (state.carrito[id] <= 0) delete state.carrito[id];
 
-            // Renderizado parcial optimizado
             const busqueda = document.getElementById('searchInput').value;
             renderizarProductos(busqueda);
             actualizarCarritoUI();
@@ -362,27 +456,23 @@
             let total = 0;
             let count = 0;
 
-            // Calcular totales
             items.forEach(([id, qty]) => {
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (p) {
                     total += p.Precio_Unitario * qty;
-                    count += 1; // Contamos items únicos (líneas)
+                    count += 1; 
                 }
             });
 
-            // Actualizar textos
             document.getElementById('itemCount').textContent = count;
             document.getElementById('totalAmount').textContent = `$${total.toLocaleString()}`;
             document.getElementById('modalTotal').textContent = `$${total.toLocaleString()}`;
 
-            // Mostrar/Ocultar barra inferior
             const footer = document.getElementById('cartFooter');
             if (Object.keys(state.carrito).length > 0) {
                 footer.classList.remove('translate-y-full');
             } else {
                 footer.classList.add('translate-y-full');
-                // Si el modal está abierto y vaciamos carrito, cerrar modal
                 document.getElementById('cartModal').classList.add('hidden');
             }
 
@@ -422,34 +512,31 @@
         // --- 4. ENVÍO DE PEDIDOS ---
         async function enviarPedido() {
             const btn = document.getElementById('btn-submit');
-            const btnQuick = document.getElementById('btn-quick-submit'); // Botón barra inferior
-            const selectCli = document.getElementById('client-select');
+            const btnQuick = document.getElementById('btn-quick-submit'); 
             
-            // VALIDACIÓN MEJORADA
-            if (selectCli.value === "") {
-                alert("⚠️ Por favor selecciona un cliente arriba antes de enviar.");
+            // --- NUEVA VALIDACIÓN PARA BUSCADOR INTELIGENTE ---
+            const clienteId = document.getElementById('selected-client-id').value;
+            const clienteNombre = document.getElementById('selected-client-name').value;
+            const clienteTel = document.getElementById('selected-client-phone').value;
+            
+            if (!clienteId) {
+                alert("⚠️ Por favor BUSCA y SELECCIONA un cliente arriba.");
                 
-                // Si el modal está abierto, lo cerramos para que vea el selector
                 const modal = document.getElementById('cartModal');
-                if(!modal.classList.contains('hidden')) {
-                     toggleCartModal(); 
-                }
+                if(!modal.classList.contains('hidden')) { toggleCartModal(); }
                 
-                // Hacemos scroll arriba y foco en el selector
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                selectCli.focus();
-                // Resaltamos visualmente el selector
-                selectCli.classList.add('ring-2', 'ring-red-500');
-                setTimeout(() => selectCli.classList.remove('ring-2', 'ring-red-500'), 2000);
+                const input = document.getElementById('client-search-input');
+                input.focus();
+                input.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => input.classList.remove('ring-2', 'ring-red-500'), 2000);
                 return;
             }
 
-            // Estado de carga en ambos botones
             const loadingText = `<i class="ph-duotone ph-spinner animate-spin text-xl"></i> Enviando...`;
             if(btn) { btn.disabled = true; btn.innerHTML = loadingText; }
             if(btnQuick) { btnQuick.disabled = true; btnQuick.innerHTML = loadingText; }
 
-            // Preparar datos
             const itemsArray = [];
             let totalVenta = 0;
 
@@ -467,25 +554,23 @@
                 }
             });
 
-            const clienteOption = selectCli.options[selectCli.selectedIndex];
             const pedidoFinal = {
                 cliente: {
-                    id: selectCli.value,
-                    nombre: clienteOption.text
+                    id: clienteId,
+                    nombre: clienteNombre
                 },
                 total: totalVenta,
                 items: itemsArray,
                 fechaLocal: new Date().toLocaleString()
             };
 
-            // Intentar Enviar
             if (navigator.onLine) {
                 try {
                     await fetch(API_URL, {
                         method: "POST",
                         body: JSON.stringify(pedidoFinal)
                     });
-                    manejarExito(pedidoFinal, clienteOption.dataset.tel);
+                    manejarExito(pedidoFinal, clienteTel);
                 } catch (error) {
                     guardarPedidoOffline(pedidoFinal);
                 }
@@ -497,7 +582,6 @@
         function manejarExito(pedido, telefono) {
             alert("✅ Pedido Registrado Exitosamente");
 
-            // WhatsApp Logic (Opcional)
             if(confirm("¿Deseas enviar el comprobante por WhatsApp?")) {
                 const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
                 const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
@@ -517,7 +601,7 @@
                 offlineBanner.classList.remove('hidden');
             } else {
                 offlineBanner.classList.add('hidden');
-                verificarPendientes(); // Intentar sincronizar al volver online
+                verificarPendientes();
             }
         }
 
@@ -599,7 +683,6 @@
             location.reload();
         }
 
-        // PWA Install Logic
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -614,7 +697,6 @@
             }
         });
         
-        // Registrar Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js');
         }
