@@ -586,22 +586,6 @@
             renderizarProductos(document.getElementById('searchInput').value);
         }
 
-        function editarCantidadManual(idProducto) {
-            const currentQty = state.carrito[idProducto] || 0;
-            const nuevaCant = prompt("Ingresa la cantidad exacta (ej: 1.5 para kilo y medio):", currentQty);
-            
-            if (nuevaCant !== null) {
-                let val = parseFloat(nuevaCant.replace(',', '.')); // Soporte para comas
-                if (!isNaN(val) && val >= 0) {
-                    if (val === 0) delete state.carrito[idProducto];
-                    else state.carrito[idProducto] = val;
-                    
-                    renderizarProductos(document.getElementById('searchInput').value);
-                    actualizarCarritoUI();
-                }
-            }
-        }
-
         function renderizarProductos(filtro = "") {
             const lista = document.getElementById('productList');
             lista.innerHTML = "";
@@ -620,17 +604,37 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
+                // Lógica de datos de peso
+                const esProductoPesable = esPesable(p.Unidad);
+                // Si es pesable y no tiene Peso_Promedio, usamos 1 como fallback visual, pero idealmente debe venir del backend
+                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1; 
+
                 // Lógica Bultos
                 const tieneBulto = p.Unidades_Bulto && p.Unidades_Bulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
                 const unidadesPorBulto = p.Unidades_Bulto || 1;
                 
-                // Precio y Etiqueta a mostrar según modo
-                const precioMostrar = enModoBulto ? (p.Precio_Unitario * unidadesPorBulto) : p.Precio_Unitario;
-                const etiquetaPrecio = enModoBulto ? "x Bulto" : "Unitario";
+                // Lógica de paso (step) para sumar/restar
+                let step = 1;
+                if (esProductoPesable) {
+                    // Si es pesable, el step es el peso promedio.
+                    // Si además está en modo bulto, es peso promedio * cantidad en el bulto
+                    step = enModoBulto ? (pesoPromedio * unidadesPorBulto) : pesoPromedio;
+                } else {
+                    // Si es unitario normal, step es 1 o el tamaño del bulto
+                    step = enModoBulto ? unidadesPorBulto : 1;
+                }
 
-                // Lógica Pesables
-                const permiteDecimales = esPesable(p.Unidad);
+                // Precio visual
+                let precioMostrar = p.Precio_Unitario;
+                if (esProductoPesable) {
+                     // Precio es por Kg, mostramos precio por la unidad mínima de venta (pieza o bulto)
+                     precioMostrar = p.Precio_Unitario * step;
+                } else {
+                     precioMostrar = enModoBulto ? (p.Precio_Unitario * unidadesPorBulto) : p.Precio_Unitario;
+                }
+                
+                const etiquetaPrecio = enModoBulto ? "x Bulto" : (esProductoPesable ? "x Pieza (~Avg)" : "Unitario");
 
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
@@ -640,18 +644,25 @@
                 if (tieneBulto) {
                     switchHtml = `
                         <div class="flex items-center gap-2 mb-2 text-xs font-medium text-[var(--text-sub)] bg-gray-100 dark:bg-gray-800 p-1.5 rounded-lg w-fit">
-                            <span class="${!enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Unit</span>
+                            <span class="${!enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">${esProductoPesable ? 'Pieza' : 'Unit'}</span>
                             <input type="checkbox" class="toggle-switch" ${enModoBulto ? 'checked' : ''} onchange="toggleModoVenta('${p.ID_Producto}')">
                             <span class="${enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Bulto (${unidadesPorBulto})</span>
                         </div>
                     `;
+                }
+                
+                // Cálculo de Piezas aproximadas para visualización
+                let infoPiezas = "";
+                if (esProductoPesable && qty > 0) {
+                    const piezasAprox = Math.round(qty / pesoPromedio);
+                    infoPiezas = `<span class="text-[10px] text-[var(--primary)] font-bold bg-[var(--primary-container)] px-1 rounded ml-1">~${piezasAprox} pzas</span>`;
                 }
 
                 card.innerHTML = `
                     <div class="mb-2">
                         <div class="flex justify-between items-start">
                             <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider mb-1 block w-fit">${p.Categoria}</span>
-                            ${permiteDecimales ? '<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Pesable</span>' : ''}
+                            ${esProductoPesable ? `<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200" title="Peso prom: ${pesoPromedio}kg">~${pesoPromedio}kg/pza</span>` : ''}
                         </div>
                         
                         <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight">${p.Nombre}</h3>
@@ -667,13 +678,16 @@
                         
                         ${isSelected ? `
                         <div class="flex items-center bg-[var(--primary-container)] rounded-full px-1 py-1 gap-2">
-                            <button onclick="cambiarCant('${p.ID_Producto}', -${enModoBulto ? unidadesPorBulto : 1})" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
+                            <button onclick="cambiarCant('${p.ID_Producto}', -${step})" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
                             
-                            <span onclick="${permiteDecimales ? `editarCantidadManual('${p.ID_Producto}')` : ''}" class="text-sm font-bold text-[var(--on-primary-container)] min-w-[1rem] text-center ${permiteDecimales ? 'underline decoration-dotted cursor-pointer' : ''}">${parseFloat(qty.toFixed(2))}</span>
+                            <div class="flex flex-col items-center">
+                                <span class="text-sm font-bold text-[var(--on-primary-container)] min-w-[1rem] text-center">${parseFloat(qty.toFixed(2))}</span>
+                                ${infoPiezas}
+                            </div>
                             
-                            <button onclick="cambiarCant('${p.ID_Producto}', ${enModoBulto ? unidadesPorBulto : 1})" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
+                            <button onclick="cambiarCant('${p.ID_Producto}', ${step})" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
                         </div>` : 
-                        `<button onclick="cambiarCant('${p.ID_Producto}', ${enModoBulto ? unidadesPorBulto : 1})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
+                        `<button onclick="cambiarCant('${p.ID_Producto}', ${step})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
                     </div>
                 `;
                 lista.appendChild(card);
@@ -685,10 +699,11 @@
             if (!state.carrito[id]) state.carrito[id] = 0;
             state.carrito[id] += delta;
             
-            // Redondeo para evitar errores de punto flotante en pesables (ej: 0.1 + 0.2)
+            // Redondeo para evitar errores de punto flotante en pesables
             state.carrito[id] = parseFloat(state.carrito[id].toFixed(3));
 
-            if (state.carrito[id] <= 0) delete state.carrito[id];
+            // Si la cantidad es muy pequeña (cerca de 0 o negativa), eliminar
+            if (state.carrito[id] <= 0.001) delete state.carrito[id];
 
             const busqueda = document.getElementById('searchInput').value;
             renderizarProductos(busqueda);
@@ -704,8 +719,7 @@
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (p) {
                     total += p.Precio_Unitario * qty;
-                    // Si es pack, contamos packs, si es unidad, contamos unidades. Aproximación visual.
-                    // Para simplificar el contador de items, contamos "líneas" de productos.
+                    // Contamos líneas de productos
                     count += 1; 
                 }
             });
@@ -732,29 +746,42 @@
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (!p) return;
 
+                const esProductoPesable = esPesable(p.Unidad);
+                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+
                 const el = document.createElement('div');
                 el.className = "flex items-center justify-between p-3 bg-[var(--surface)] rounded-xl border border-gray-100 dark:border-gray-800";
                 
-                // Mostrar si es bulto aproximado o unidad
-                let detalleCantidad = `${parseFloat(qty.toFixed(3))} un.`;
-                if(p.Unidades_Bulto > 1 && qty >= p.Unidades_Bulto && qty % p.Unidades_Bulto === 0) {
+                // Texto descriptivo de cantidad
+                let detalleCantidad = `${parseFloat(qty.toFixed(3))} ${p.Unidad}`;
+                
+                // Si es pesable, mostramos piezas estimadas
+                if(esProductoPesable) {
+                    const piezas = Math.round(qty / pesoPromedio);
+                    detalleCantidad += ` (~${piezas} pzas)`;
+                } 
+                // Si es bulto (y no pesable, o pesable en bulto), mostramos bultos
+                else if(p.Unidades_Bulto > 1 && qty >= p.Unidades_Bulto && qty % p.Unidades_Bulto === 0) {
                     const bultos = qty / p.Unidades_Bulto;
                     detalleCantidad += ` (${bultos} Bultos)`;
                 }
 
+                // Step para botones del modal (usamos lógica simple: 1 unidad o 1 peso promedio)
+                const stepModal = esProductoPesable ? pesoPromedio : 1;
+
                 el.innerHTML = `
                     <div class="flex-1 pr-2">
                         <div class="text-sm font-medium text-[var(--text-main)]">${p.Nombre}</div>
-                        <div class="text-[var(--primary)] font-bold">$${p.Precio_Unitario} x un.</div>
-                        <div class="text-xs text-[var(--text-sub)]">Total item: $${(p.Precio_Unitario * qty).toLocaleString()}</div>
+                        <div class="text-[var(--primary)] font-bold">$${p.Precio_Unitario} / ${p.Unidad}</div>
+                        <div class="text-xs text-[var(--text-sub)]">Total: $${(p.Precio_Unitario * qty).toLocaleString()}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                         <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ${qty<=1?'ph-trash':'ph-minus'}"></i></button>
+                         <button onclick="cambiarCant('${p.ID_Producto}', -${stepModal})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ph-minus"></i></button>
                          <div class="flex flex-col items-center">
-                            <span onclick="editarCantidadManual('${p.ID_Producto}')" class="font-bold text-[var(--text-main)] min-w-[2rem] text-center underline decoration-dotted cursor-pointer">${parseFloat(qty.toFixed(2))}</span>
-                            <span class="text-[9px] text-[var(--text-sub)]">${p.Unidad}</span>
+                            <span class="font-bold text-[var(--text-main)] min-w-[2rem] text-center">${parseFloat(qty.toFixed(2))}</span>
+                            <span class="text-[9px] text-[var(--text-sub)] text-center max-w-[60px] leading-tight">${detalleCantidad}</span>
                          </div>
-                         <button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white"><i class="ph-bold ph-plus"></i></button>
+                         <button onclick="cambiarCant('${p.ID_Producto}', ${stepModal})" class="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white"><i class="ph-bold ph-plus"></i></button>
                     </div>
                 `;
                 contenedor.appendChild(el);
@@ -799,10 +826,19 @@
                 if (p) {
                     const subtotal = p.Precio_Unitario * qty;
                     totalVenta += subtotal;
+                    
+                    // Enriquecemos la info para el historial/ticket
+                    let detalleStr = `${qty} ${p.Unidad}`;
+                    if(esPesable(p.Unidad) && p.Peso_Promedio) {
+                        const piezas = Math.round(qty / p.Peso_Promedio);
+                        detalleStr += ` (~${piezas} pzas)`;
+                    }
+
                     itemsArray.push({
                         id: p.ID_Producto,
                         nombre: p.Nombre,
                         cantidad: qty,
+                        detalle: detalleStr,
                         subtotal: subtotal
                     });
                 }
@@ -853,7 +889,8 @@
         }
 
         function abrirWhatsapp(pedido, telefono) {
-            const listaItems = pedido.items.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
+            // Usamos el campo 'detalle' enriquecido si existe, sino fallback
+            const listaItems = pedido.items.map(i => `- ${i.detalle || (i.cantidad + ' un')} ${i.nombre}`).join('\n');
             const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
             const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
             const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
