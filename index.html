@@ -8,7 +8,6 @@
     <!-- --- CONEXIÓN PWA (Estructura Plana) --- -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0066cc">
-    <!-- Icono para iPhone (busca en raíz) -->
     <link rel="apple-touch-icon" href="./icon-192.png">
 
     <style>
@@ -42,7 +41,6 @@
             gap: 10px;
         }
         
-        /* Contenedor del título y botón instalar */
         .header-top {
             display: flex;
             justify-content: space-between;
@@ -51,7 +49,6 @@
 
         header h1 { margin: 0; font-size: 1.1rem; font-weight: normal; }
 
-        /* Estilo del botón de instalación manual */
         #btn-install {
             background-color: white;
             color: var(--primary);
@@ -62,7 +59,7 @@
             font-size: 0.9rem;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            display: none; /* Oculto por defecto */
+            display: none; 
         }
 
         .client-selector { 
@@ -145,7 +142,6 @@
     <header>
         <div class="header-top">
             <h1>Distribuidora Lácteos</h1>
-            <!-- Botón de instalación manual (se muestra con JS) -->
             <button id="btn-install">📲 Instalar</button>
         </div>
         <select id="client-select" class="client-selector">
@@ -198,6 +194,8 @@
                 const opt = document.createElement('option');
                 opt.value = c.ID_Cliente; 
                 opt.textContent = `${c.Nombre_Negocio} (${c.Dueño})`;
+                // --- NUEVO: Guardamos el teléfono en un atributo oculto ---
+                opt.dataset.tel = c.Telefono || ""; 
                 clientSelect.appendChild(opt);
             });
         }
@@ -268,6 +266,7 @@
             const itemsArray = [];
             let totalVenta = 0;
 
+            // Recolectar datos del carrito
             productos.forEach(p => {
                 const cant = carrito[p.ID_Producto] || 0;
                 if (cant > 0) {
@@ -282,24 +281,54 @@
                 }
             });
 
+            // Datos del cliente
+            const clienteOption = clientSelect.options[clientSelect.selectedIndex];
+            const clienteNombre = clienteOption.text;
+            const clienteTelefono = clienteOption.dataset.tel; // Recuperamos el teléfono
+
             const pedidoFinal = {
                 cliente: {
                     id: clientSelect.value,
-                    nombre: clientSelect.options[clientSelect.selectedIndex].text
+                    nombre: clienteNombre
                 },
                 total: totalVenta,
                 items: itemsArray
             };
 
             try {
+                // Enviar a Google Sheets
                 await fetch(API_URL, {
                     method: "POST",
                     body: JSON.stringify(pedidoFinal)
                 });
-                alert("✅ Pedido guardado correctamente");
+                
+                // --- NUEVO: Preparar Mensaje de WhatsApp ---
+                const listaItems = itemsArray.map(i => `- ${i.cantidad}x ${i.nombre}`).join('\n');
+                const mensaje = `Hola *${clienteNombre}*! 👋\n\nTe confirmamos tu pedido:\n${listaItems}\n\n*Total: $${totalVenta.toLocaleString()}*\n\n¡Gracias por tu compra! 🥛🧀`;
+                
+                // Codificar para URL
+                const mensajeEncoded = encodeURIComponent(mensaje);
+                
+                // Definir enlace (Si hay teléfono directo, si no, abrir para elegir contacto)
+                let urlWhatsapp = "";
+                if (clienteTelefono) {
+                    // Limpiamos el teléfono de espacios o guiones
+                    const telLimpio = clienteTelefono.replace(/[^0-9]/g, '');
+                    urlWhatsapp = `https://wa.me/${telLimpio}?text=${mensajeEncoded}`;
+                } else {
+                    urlWhatsapp = `https://wa.me/?text=${mensajeEncoded}`;
+                }
+
+                // Confirmación al preventista
+                if(confirm("✅ Pedido guardado. ¿Enviar comprobante por WhatsApp?")) {
+                    window.open(urlWhatsapp, '_blank');
+                }
+                
                 location.reload(); 
+
             } catch (error) {
-                alert("❌ Error de conexión.");
+                console.error(error);
+                alert("❌ Error de conexión. Inténtalo de nuevo.");
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Reintentar";
             }
@@ -308,53 +337,32 @@
         iniciarApp();
     </script>
 
-    <!-- --- LOGICA DE INSTALACIÓN PWA Y DEPURACIÓN --- -->
+    <!-- LOGICA PWA -->
     <script>
-        // 1. Registro del Service Worker con LOGS
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('✅ [PWA] Service Worker registrado. Scope:', reg.scope))
-                    .catch(err => console.error('❌ [PWA] Falló el SW:', err));
+                    .then(reg => console.log('✅ [PWA] Service Worker OK'))
+                    .catch(err => console.error('❌ [PWA] Falló SW:', err));
             });
         }
 
-        // 2. Lógica del Botón de Instalación
         let deferredPrompt;
         const installBtn = document.getElementById('btn-install');
-
-        // Escuchamos el evento mágico del navegador
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('🎉 [PWA] ¡El navegador dice que la App es instalable!');
-            // Prevenimos que el navegador muestre su barra automática (opcional)
             e.preventDefault();
-            // Guardamos el evento para lanzarlo cuando queramos
             deferredPrompt = e;
-            // Mostramos nuestro botón
             installBtn.style.display = 'block';
         });
-
-        // Al hacer clic en el botón
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
-                // Lanzamos la pregunta nativa
                 deferredPrompt.prompt();
-                // Esperamos la respuesta del usuario
                 const { outcome } = await deferredPrompt.userChoice;
-                console.log(`[PWA] El usuario decidió: ${outcome}`);
-                // Limpiamos
                 deferredPrompt = null;
-                // Ocultamos botón
                 installBtn.style.display = 'none';
             }
-        });
-
-        // Evento cuando ya se instaló
-        window.addEventListener('appinstalled', () => {
-            console.log('✅ [PWA] ¡La App fue instalada exitosamente!');
         });
     </script>
 
 </body>
 </html>
-
