@@ -78,6 +78,38 @@
             overflow-y: auto;
             scrollbar-width: thin;
         }
+        
+        /* Estilos Toggle Bulto */
+        .toggle-switch {
+            appearance: none;
+            width: 36px;
+            height: 20px;
+            background: #ddd;
+            border-radius: 20px;
+            position: relative;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-switch:checked {
+            background: var(--primary);
+        }
+        .toggle-switch:checked::after {
+            transform: translateX(16px);
+        }
+        .dark-mode .toggle-switch { background: #444; }
+        .dark-mode .toggle-switch:checked { background: var(--primary); }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden" onclick="cerrarDropdowns(event)">
@@ -145,12 +177,12 @@
 
                     <!-- Botones Dentro del Input -->
                     <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
-                        <!-- Limpiar -->
-                        <button id="clear-client-btn" class="text-[var(--text-sub)] hidden p-1 hover:text-red-500" onclick="resetCliente()">
+                        <!-- Limpiar Cliente -->
+                        <button id="clear-client-btn" class="text-[var(--text-sub)] hidden p-1 hover:text-red-500 transition-colors" onclick="resetCliente()">
                             <i class="ph-fill ph-x-circle text-lg"></i>
                         </button>
-                        <!-- Micrófono -->
-                        <button id="mic-client-btn" class="text-[var(--primary)] p-2 rounded-full hover:bg-black/5" onclick="startVoice('client-search-input', filtrarClientes, 'mic-client-btn')">
+                        <!-- Micrófono Cliente -->
+                        <button id="mic-client-btn" class="text-[var(--primary)] p-2 rounded-full hover:bg-black/5 transition-colors" onclick="startVoice('client-search-input', filtrarClientes, 'mic-client-btn')">
                             <i class="ph-bold ph-microphone text-lg"></i>
                         </button>
                     </div>
@@ -164,17 +196,18 @@
 
             <!-- BUSCADOR DE PRODUCTOS -->
             <div class="relative z-10">
-                <div class="md-search-bar h-12 flex items-center px-4 gap-3">
-                    <i class="ph ph-magnifying-glass text-[var(--text-sub)] text-xl"></i>
+                <div class="md-search-bar h-12 flex items-center px-4 gap-2">
+                    <i class="ph ph-magnifying-glass text-[var(--text-sub)] text-xl shrink-0"></i>
                     <input type="text" id="searchInput" placeholder="Buscar productos..." 
-                           class="bg-transparent flex-1 outline-none text-[16px] text-[var(--text-main)] placeholder-[var(--text-sub)]"
+                           class="bg-transparent flex-1 outline-none text-[16px] text-[var(--text-main)] placeholder-[var(--text-sub)] min-w-0"
                            autocomplete="off">
                     
-                    <button id="clearSearch" class="hidden text-[var(--text-sub)]" onclick="clearInput()">
+                    <!-- Limpiar Producto -->
+                    <button id="clearSearch" class="hidden text-[var(--text-sub)] p-1 hover:text-red-500 shrink-0 transition-colors" onclick="clearInput()">
                         <i class="ph-fill ph-x-circle text-xl"></i>
                     </button>
                     <!-- Micrófono Producto -->
-                    <button id="mic-prod-btn" class="text-[var(--primary)] p-1 rounded-full hover:bg-black/5" onclick="startVoice('searchInput', renderizarProductos, 'mic-prod-btn')">
+                    <button id="mic-prod-btn" class="text-[var(--primary)] p-1 rounded-full hover:bg-black/5 shrink-0 transition-colors" onclick="startVoice('searchInput', renderizarProductos, 'mic-prod-btn')">
                         <i class="ph-bold ph-microphone text-xl"></i>
                     </button>
                 </div>
@@ -268,13 +301,19 @@
             <div class="p-3 border-b border-gray-100 dark:border-gray-800 flex gap-2 bg-[var(--surface-container)]">
                 <div class="flex-1 relative">
                     <input type="text" id="history-search-client" placeholder="Buscar por voz..." 
-                           class="w-full bg-[var(--surface)] text-sm p-2 pl-3 pr-8 rounded-lg border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]"
+                           class="w-full bg-[var(--surface)] text-sm p-2 pl-3 pr-16 rounded-lg border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]"
                            oninput="renderizarHistorial()">
                     
-                    <!-- Micrófono Historial -->
-                    <button id="mic-history-btn" class="absolute inset-y-0 right-0 pr-2 flex items-center text-[var(--primary)]" onclick="startVoice('history-search-client', renderizarHistorial, 'mic-history-btn')">
-                        <i class="ph-bold ph-microphone text-lg"></i>
-                    </button>
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                        <!-- Limpiar Historial -->
+                        <button id="clear-history-btn" class="hidden text-[var(--text-sub)] p-1 hover:text-red-500 transition-colors" onclick="clearHistorySearch()">
+                            <i class="ph-fill ph-x-circle text-lg"></i>
+                        </button>
+                        <!-- Micrófono Historial -->
+                        <button id="mic-history-btn" class="text-[var(--primary)] p-1 hover:bg-black/5 rounded-full transition-colors" onclick="startVoice('history-search-client', renderizarHistorial, 'mic-history-btn')">
+                            <i class="ph-bold ph-microphone text-lg"></i>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <input type="date" id="history-search-date" 
@@ -326,7 +365,8 @@
             carrito: {}, 
             config: { darkMode: false },
             clienteSeleccionado: null,
-            historial: [] 
+            historial: [],
+            modoBulto: {} // {ID_Producto: true/false}
         };
 
         // --- 2. INICIO Y CARGA DE DATOS ---
@@ -334,8 +374,16 @@
             cargarConfigLocal();
             iniciarApp();
             
-            // Listeners
-            document.getElementById('searchInput').addEventListener('input', (e) => renderizarProductos(e.target.value));
+            // Listeners Productos
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                renderizarProductos(val);
+                // Mostrar/Ocultar botón X de productos
+                const clearBtn = document.getElementById('clearSearch');
+                if(val.length > 0) clearBtn.classList.remove('hidden');
+                else clearBtn.classList.add('hidden');
+            });
             
             // Verificar conexión
             window.addEventListener('online', actualizarEstadoConexion);
@@ -433,7 +481,10 @@
                     callbackFunction(speechResult);
                 }
                 
-                // Si es el buscador de clientes, activamos el filtrado para mostrar el dropdown
+                // Disparar evento input para que se actualicen los botones X
+                input.dispatchEvent(new Event('input'));
+                
+                // Si es el buscador de clientes, activamos el foco
                 if(inputId === 'client-search-input') {
                    input.focus();
                 }
@@ -451,6 +502,15 @@
         // --- 2.5 NUEVO SISTEMA DE BÚSQUEDA DE CLIENTES (FLEXIBLE) ---
         function filtrarClientes(filtro, mostrarTodos = false) {
             const dropdown = document.getElementById('client-dropdown');
+            const clearBtn = document.getElementById('clear-client-btn');
+
+            // Mostrar botón X si hay texto
+            if (filtro && filtro.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
             dropdown.innerHTML = "";
             
             if (!filtro && !mostrarTodos) {
@@ -488,7 +548,9 @@
             document.getElementById('selected-client-name').value = cliente.Nombre_Negocio;
             
             document.getElementById('client-dropdown').classList.add('hidden');
+            // Aseguramos que la X sea visible al seleccionar
             document.getElementById('clear-client-btn').classList.remove('hidden');
+            
             document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
         }
 
@@ -513,6 +575,33 @@
 
         // --- RESTO DE LÓGICA (PRODUCTOS, CARRITO, ENVIO) ---
 
+        // Función auxiliar para detectar si un producto es "pesable"
+        function esPesable(unidad) {
+            const u = (unidad || "").toLowerCase();
+            return u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo');
+        }
+
+        function toggleModoVenta(idProducto) {
+            state.modoBulto[idProducto] = !state.modoBulto[idProducto];
+            renderizarProductos(document.getElementById('searchInput').value);
+        }
+
+        function editarCantidadManual(idProducto) {
+            const currentQty = state.carrito[idProducto] || 0;
+            const nuevaCant = prompt("Ingresa la cantidad exacta (ej: 1.5 para kilo y medio):", currentQty);
+            
+            if (nuevaCant !== null) {
+                let val = parseFloat(nuevaCant.replace(',', '.')); // Soporte para comas
+                if (!isNaN(val) && val >= 0) {
+                    if (val === 0) delete state.carrito[idProducto];
+                    else state.carrito[idProducto] = val;
+                    
+                    renderizarProductos(document.getElementById('searchInput').value);
+                    actualizarCarritoUI();
+                }
+            }
+        }
+
         function renderizarProductos(filtro = "") {
             const lista = document.getElementById('productList');
             lista.innerHTML = "";
@@ -531,26 +620,60 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
+                // Lógica Bultos
+                const tieneBulto = p.Unidades_Bulto && p.Unidades_Bulto > 1;
+                const enModoBulto = state.modoBulto[p.ID_Producto] || false;
+                const unidadesPorBulto = p.Unidades_Bulto || 1;
+                
+                // Precio y Etiqueta a mostrar según modo
+                const precioMostrar = enModoBulto ? (p.Precio_Unitario * unidadesPorBulto) : p.Precio_Unitario;
+                const etiquetaPrecio = enModoBulto ? "x Bulto" : "Unitario";
+
+                // Lógica Pesables
+                const permiteDecimales = esPesable(p.Unidad);
+
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
                 
+                // Renderizado condicional del Switch de Bulto
+                let switchHtml = '';
+                if (tieneBulto) {
+                    switchHtml = `
+                        <div class="flex items-center gap-2 mb-2 text-xs font-medium text-[var(--text-sub)] bg-gray-100 dark:bg-gray-800 p-1.5 rounded-lg w-fit">
+                            <span class="${!enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Unit</span>
+                            <input type="checkbox" class="toggle-switch" ${enModoBulto ? 'checked' : ''} onchange="toggleModoVenta('${p.ID_Producto}')">
+                            <span class="${enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Bulto (${unidadesPorBulto})</span>
+                        </div>
+                    `;
+                }
+
                 card.innerHTML = `
                     <div class="mb-2">
-                        <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider">${p.Categoria}</span>
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider mb-1 block w-fit">${p.Categoria}</span>
+                            ${permiteDecimales ? '<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Pesable</span>' : ''}
+                        </div>
+                        
                         <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight">${p.Nombre}</h3>
+                        ${switchHtml}
                         <p class="text-xs text-[var(--text-sub)] mt-0.5">Stock: ${p.Stock_Actual} ${p.Unidad}</p>
                     </div>
                     
-                    <div class="flex items-end justify-between mt-auto">
-                        <span class="text-lg font-bold text-[var(--primary)]">$${p.Precio_Unitario}</span>
+                    <div class="flex items-end justify-between mt-auto pt-2">
+                        <div class="flex flex-col">
+                            <span class="text-lg font-bold text-[var(--primary)]">$${precioMostrar.toLocaleString()}</span>
+                            <span class="text-[10px] text-[var(--text-sub)]">${etiquetaPrecio}</span>
+                        </div>
                         
                         ${isSelected ? `
                         <div class="flex items-center bg-[var(--primary-container)] rounded-full px-1 py-1 gap-2">
-                            <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
-                            <span class="text-sm font-bold text-[var(--on-primary-container)] w-4 text-center">${qty}</span>
-                            <button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
+                            <button onclick="cambiarCant('${p.ID_Producto}', -${enModoBulto ? unidadesPorBulto : 1})" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
+                            
+                            <span onclick="${permiteDecimales ? `editarCantidadManual('${p.ID_Producto}')` : ''}" class="text-sm font-bold text-[var(--on-primary-container)] min-w-[1rem] text-center ${permiteDecimales ? 'underline decoration-dotted cursor-pointer' : ''}">${parseFloat(qty.toFixed(2))}</span>
+                            
+                            <button onclick="cambiarCant('${p.ID_Producto}', ${enModoBulto ? unidadesPorBulto : 1})" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
                         </div>` : 
-                        `<button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
+                        `<button onclick="cambiarCant('${p.ID_Producto}', ${enModoBulto ? unidadesPorBulto : 1})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
                     </div>
                 `;
                 lista.appendChild(card);
@@ -561,6 +684,10 @@
         function cambiarCant(id, delta) {
             if (!state.carrito[id]) state.carrito[id] = 0;
             state.carrito[id] += delta;
+            
+            // Redondeo para evitar errores de punto flotante en pesables (ej: 0.1 + 0.2)
+            state.carrito[id] = parseFloat(state.carrito[id].toFixed(3));
+
             if (state.carrito[id] <= 0) delete state.carrito[id];
 
             const busqueda = document.getElementById('searchInput').value;
@@ -577,6 +704,8 @@
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (p) {
                     total += p.Precio_Unitario * qty;
+                    // Si es pack, contamos packs, si es unidad, contamos unidades. Aproximación visual.
+                    // Para simplificar el contador de items, contamos "líneas" de productos.
                     count += 1; 
                 }
             });
@@ -605,14 +734,26 @@
 
                 const el = document.createElement('div');
                 el.className = "flex items-center justify-between p-3 bg-[var(--surface)] rounded-xl border border-gray-100 dark:border-gray-800";
+                
+                // Mostrar si es bulto aproximado o unidad
+                let detalleCantidad = `${parseFloat(qty.toFixed(3))} un.`;
+                if(p.Unidades_Bulto > 1 && qty >= p.Unidades_Bulto && qty % p.Unidades_Bulto === 0) {
+                    const bultos = qty / p.Unidades_Bulto;
+                    detalleCantidad += ` (${bultos} Bultos)`;
+                }
+
                 el.innerHTML = `
                     <div class="flex-1 pr-2">
                         <div class="text-sm font-medium text-[var(--text-main)]">${p.Nombre}</div>
-                        <div class="text-[var(--primary)] font-bold">$${p.Precio_Unitario}</div>
+                        <div class="text-[var(--primary)] font-bold">$${p.Precio_Unitario} x un.</div>
+                        <div class="text-xs text-[var(--text-sub)]">Total item: $${(p.Precio_Unitario * qty).toLocaleString()}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                         <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ${qty===1?'ph-trash':'ph-minus'}"></i></button>
-                         <span class="font-bold text-[var(--text-main)] w-4 text-center">${qty}</span>
+                         <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ${qty<=1?'ph-trash':'ph-minus'}"></i></button>
+                         <div class="flex flex-col items-center">
+                            <span onclick="editarCantidadManual('${p.ID_Producto}')" class="font-bold text-[var(--text-main)] min-w-[2rem] text-center underline decoration-dotted cursor-pointer">${parseFloat(qty.toFixed(2))}</span>
+                            <span class="text-[9px] text-[var(--text-sub)]">${p.Unidad}</span>
+                         </div>
                          <button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white"><i class="ph-bold ph-plus"></i></button>
                     </div>
                 `;
@@ -740,11 +881,19 @@
                 // Reset filtros al abrir
                 document.getElementById('history-search-client').value = '';
                 document.getElementById('history-search-date').value = '';
+                document.getElementById('clear-history-btn').classList.add('hidden'); // Ocultar X
                 renderizarHistorial();
                 modal.classList.remove('hidden');
             } else {
                 modal.classList.add('hidden');
             }
+        }
+
+        function clearHistorySearch() {
+            document.getElementById('history-search-client').value = '';
+            document.getElementById('clear-history-btn').classList.add('hidden');
+            renderizarHistorial();
+            document.getElementById('history-search-client').focus();
         }
 
         function renderizarHistorial() {
@@ -754,6 +903,11 @@
             // --- FILTROS ---
             const filtroTexto = document.getElementById('history-search-client').value;
             const filtroFecha = document.getElementById('history-search-date').value; // YYYY-MM-DD
+            
+            // Mostrar/Ocultar botón X del historial
+            const clearHistBtn = document.getElementById('clear-history-btn');
+            if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
+            else clearHistBtn.classList.add('hidden');
 
             // Filtrado Flexible
             const historialFiltrado = state.historial.filter(p => {
@@ -950,6 +1104,7 @@
         // --- 7. UTILS & UI CONFIG ---
         function clearInput() {
             document.getElementById('searchInput').value = '';
+            document.getElementById('clearSearch').classList.add('hidden');
             renderizarProductos();
         }
 
