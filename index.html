@@ -584,6 +584,7 @@
         function toggleModoVenta(idProducto) {
             state.modoBulto[idProducto] = !state.modoBulto[idProducto];
             renderizarProductos(document.getElementById('searchInput').value);
+            actualizarCarritoUI(); // Actualizar totales también
         }
 
         function renderizarProductos(filtro = "") {
@@ -604,65 +605,68 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
-                // Lógica de datos de peso
+                // --- LÓGICA UNIFICADA ---
                 const esProductoPesable = esPesable(p.Unidad);
-                // Si es pesable y no tiene Peso_Promedio, usamos 1 como fallback visual, pero idealmente debe venir del backend
-                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1; 
-
-                // Lógica Bultos
-                const tieneBulto = p.Unidades_Bulto && p.Unidades_Bulto > 1;
+                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+                const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
+                const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
-                const unidadesPorBulto = p.Unidades_Bulto || 1;
-                
-                // Lógica de paso (step) para sumar/restar
-                let step = 1;
+
+                // Calculamos el "Factor de Multiplicación" para el precio
+                // Este factor convierte "1 Click" en el precio real ($)
+                let factorPrecio = 1;
+
                 if (esProductoPesable) {
-                    // Si es pesable, el step es el peso promedio.
-                    // Si además está en modo bulto, es peso promedio * cantidad en el bulto
-                    step = enModoBulto ? (pesoPromedio * unidadesPorBulto) : pesoPromedio;
+                    // Si es pesable: (Peso Promedio) * (Unidades si es bulto, sino 1)
+                    factorPrecio = pesoPromedio * (enModoBulto ? unidadesPorBulto : 1);
                 } else {
-                    // Si es unitario normal, step es 1 o el tamaño del bulto
-                    step = enModoBulto ? unidadesPorBulto : 1;
+                    // Si NO es pesable: (Unidades si es bulto, sino 1)
+                    factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
                 }
 
-                // Precio visual
-                let precioMostrar = p.Precio_Unitario;
+                const precioVisual = p.Precio_Unitario * factorPrecio;
+
+                // Definir etiquetas visuales
+                let etiquetaTipo = "";
+                let etiquetaPeso = "";
+
                 if (esProductoPesable) {
-                     // Precio es por Kg, mostramos precio por la unidad mínima de venta (pieza o bulto)
-                     precioMostrar = p.Precio_Unitario * step;
+                    if (enModoBulto) {
+                        etiquetaTipo = "x Bulto";
+                        etiquetaPeso = `(~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg)`;
+                    } else {
+                        etiquetaTipo = "x Pieza";
+                        etiquetaPeso = `(~${pesoPromedio}kg)`;
+                    }
                 } else {
-                     precioMostrar = enModoBulto ? (p.Precio_Unitario * unidadesPorBulto) : p.Precio_Unitario;
+                    if (enModoBulto) {
+                        etiquetaTipo = "x Bulto";
+                        etiquetaPeso = `(${unidadesPorBulto} u.)`;
+                    } else {
+                        etiquetaTipo = "Unitario";
+                    }
                 }
-                
-                const etiquetaPrecio = enModoBulto ? "x Bulto" : (esProductoPesable ? "x Pieza (~Avg)" : "Unitario");
 
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
                 
-                // Renderizado condicional del Switch de Bulto
+                // Switch HTML
                 let switchHtml = '';
                 if (tieneBulto) {
                     switchHtml = `
                         <div class="flex items-center gap-2 mb-2 text-xs font-medium text-[var(--text-sub)] bg-gray-100 dark:bg-gray-800 p-1.5 rounded-lg w-fit">
                             <span class="${!enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">${esProductoPesable ? 'Pieza' : 'Unit'}</span>
                             <input type="checkbox" class="toggle-switch" ${enModoBulto ? 'checked' : ''} onchange="toggleModoVenta('${p.ID_Producto}')">
-                            <span class="${enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Bulto (${unidadesPorBulto})</span>
+                            <span class="${enModoBulto ? 'text-[var(--primary)] font-bold' : ''}">Bulto</span>
                         </div>
                     `;
-                }
-                
-                // Cálculo de Piezas aproximadas para visualización
-                let infoPiezas = "";
-                if (esProductoPesable && qty > 0) {
-                    const piezasAprox = Math.round(qty / pesoPromedio);
-                    infoPiezas = `<span class="text-[10px] text-[var(--primary)] font-bold bg-[var(--primary-container)] px-1 rounded ml-1">~${piezasAprox} pzas</span>`;
                 }
 
                 card.innerHTML = `
                     <div class="mb-2">
                         <div class="flex justify-between items-start">
                             <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider mb-1 block w-fit">${p.Categoria}</span>
-                            ${esProductoPesable ? `<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200" title="Peso prom: ${pesoPromedio}kg">~${pesoPromedio}kg/pza</span>` : ''}
+                            ${esProductoPesable ? `<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Pesable</span>` : ''}
                         </div>
                         
                         <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight">${p.Nombre}</h3>
@@ -672,22 +676,22 @@
                     
                     <div class="flex items-end justify-between mt-auto pt-2">
                         <div class="flex flex-col">
-                            <span class="text-lg font-bold text-[var(--primary)]">$${precioMostrar.toLocaleString()}</span>
-                            <span class="text-[10px] text-[var(--text-sub)]">${etiquetaPrecio}</span>
+                            <span class="text-lg font-bold text-[var(--primary)]">$${precioVisual.toLocaleString()}</span>
+                            <div class="flex flex-col leading-none">
+                                <span class="text-[10px] text-[var(--text-sub)] font-bold">${etiquetaTipo}</span>
+                                <span class="text-[9px] text-[var(--text-sub)]">${etiquetaPeso}</span>
+                            </div>
                         </div>
                         
                         ${isSelected ? `
                         <div class="flex items-center bg-[var(--primary-container)] rounded-full px-1 py-1 gap-2">
-                            <button onclick="cambiarCant('${p.ID_Producto}', -${step})" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
+                            <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-7 h-7 bg-white dark:bg-black rounded-full flex items-center justify-center text-[var(--primary)] shadow-sm active:scale-90 transition"><i class="ph-bold ph-minus text-xs"></i></button>
                             
-                            <div class="flex flex-col items-center">
-                                <span class="text-sm font-bold text-[var(--on-primary-container)] min-w-[1rem] text-center">${parseFloat(qty.toFixed(2))}</span>
-                                ${infoPiezas}
-                            </div>
+                            <span class="text-lg font-bold text-[var(--on-primary-container)] min-w-[1rem] text-center">${qty}</span>
                             
-                            <button onclick="cambiarCant('${p.ID_Producto}', ${step})" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
+                            <button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-7 h-7 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm active:scale-90 transition"><i class="ph-bold ph-plus text-xs"></i></button>
                         </div>` : 
-                        `<button onclick="cambiarCant('${p.ID_Producto}', ${step})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
+                        `<button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-[var(--primary)] flex items-center justify-center hover:bg-[var(--primary-container)] transition"><i class="ph-bold ph-plus"></i></button>`}
                     </div>
                 `;
                 lista.appendChild(card);
@@ -699,34 +703,62 @@
             if (!state.carrito[id]) state.carrito[id] = 0;
             state.carrito[id] += delta;
             
-            // Redondeo para evitar errores de punto flotante en pesables
-            state.carrito[id] = parseFloat(state.carrito[id].toFixed(3));
+            // Ahora qty es SIEMPRE entero (representa unidades de venta seleccionadas)
+            state.carrito[id] = Math.round(state.carrito[id]); 
 
-            // Si la cantidad es muy pequeña (cerca de 0 o negativa), eliminar
-            if (state.carrito[id] <= 0.001) delete state.carrito[id];
+            if (state.carrito[id] <= 0) delete state.carrito[id];
 
             const busqueda = document.getElementById('searchInput').value;
             renderizarProductos(busqueda);
             actualizarCarritoUI();
         }
 
+        // Función auxiliar para calcular totales basada en la lógica unificada
+        function calcularTotalItem(p, qty) {
+            const esProductoPesable = esPesable(p.Unidad);
+            const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+            const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
+            const enModoBulto = state.modoBulto[p.ID_Producto] || false;
+
+            let factorPrecio = 1;
+            if (esProductoPesable) {
+                factorPrecio = pesoPromedio * (enModoBulto ? unidadesPorBulto : 1);
+            } else {
+                factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
+            }
+            
+            // Retorna: { precioTotal, descripcionCantidad }
+            const total = p.Precio_Unitario * factorPrecio * qty;
+            
+            let desc = "";
+            if (enModoBulto) {
+                desc = `${qty} Bulto${qty > 1 ? 's' : ''}`;
+                if (esProductoPesable) desc += ` (~${(pesoPromedio * unidadesPorBulto * qty).toFixed(1)}kg)`;
+            } else {
+                desc = `${qty} ${esProductoPesable ? 'Pieza' : 'Unidad'}${qty > 1 ? 's' : ''}`;
+                if (esProductoPesable) desc += ` (~${(pesoPromedio * qty).toFixed(1)}kg)`;
+            }
+
+            return { total, desc };
+        }
+
         function actualizarCarritoUI() {
             const items = Object.entries(state.carrito);
-            let total = 0;
+            let totalGeneral = 0;
             let count = 0;
 
             items.forEach(([id, qty]) => {
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (p) {
-                    total += p.Precio_Unitario * qty;
-                    // Contamos líneas de productos
+                    const info = calcularTotalItem(p, qty);
+                    totalGeneral += info.total;
                     count += 1; 
                 }
             });
 
             document.getElementById('itemCount').textContent = count;
-            document.getElementById('totalAmount').textContent = `$${total.toLocaleString()}`;
-            document.getElementById('modalTotal').textContent = `$${total.toLocaleString()}`;
+            document.getElementById('totalAmount').textContent = `$${totalGeneral.toLocaleString()}`;
+            document.getElementById('modalTotal').textContent = `$${totalGeneral.toLocaleString()}`;
 
             const footer = document.getElementById('cartFooter');
             if (Object.keys(state.carrito).length > 0) {
@@ -746,42 +778,21 @@
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (!p) return;
 
-                const esProductoPesable = esPesable(p.Unidad);
-                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+                const info = calcularTotalItem(p, qty);
 
                 const el = document.createElement('div');
                 el.className = "flex items-center justify-between p-3 bg-[var(--surface)] rounded-xl border border-gray-100 dark:border-gray-800";
                 
-                // Texto descriptivo de cantidad
-                let detalleCantidad = `${parseFloat(qty.toFixed(3))} ${p.Unidad}`;
-                
-                // Si es pesable, mostramos piezas estimadas
-                if(esProductoPesable) {
-                    const piezas = Math.round(qty / pesoPromedio);
-                    detalleCantidad += ` (~${piezas} pzas)`;
-                } 
-                // Si es bulto (y no pesable, o pesable en bulto), mostramos bultos
-                else if(p.Unidades_Bulto > 1 && qty >= p.Unidades_Bulto && qty % p.Unidades_Bulto === 0) {
-                    const bultos = qty / p.Unidades_Bulto;
-                    detalleCantidad += ` (${bultos} Bultos)`;
-                }
-
-                // Step para botones del modal (usamos lógica simple: 1 unidad o 1 peso promedio)
-                const stepModal = esProductoPesable ? pesoPromedio : 1;
-
                 el.innerHTML = `
                     <div class="flex-1 pr-2">
                         <div class="text-sm font-medium text-[var(--text-main)]">${p.Nombre}</div>
-                        <div class="text-[var(--primary)] font-bold">$${p.Precio_Unitario} / ${p.Unidad}</div>
-                        <div class="text-xs text-[var(--text-sub)]">Total: $${(p.Precio_Unitario * qty).toLocaleString()}</div>
+                        <div class="text-[var(--primary)] font-bold text-xs">${info.desc}</div>
+                        <div class="text-xs text-[var(--text-sub)] mt-1">Total: $${info.total.toLocaleString()}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                         <button onclick="cambiarCant('${p.ID_Producto}', -${stepModal})" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ph-minus"></i></button>
-                         <div class="flex flex-col items-center">
-                            <span class="font-bold text-[var(--text-main)] min-w-[2rem] text-center">${parseFloat(qty.toFixed(2))}</span>
-                            <span class="text-[9px] text-[var(--text-sub)] text-center max-w-[60px] leading-tight">${detalleCantidad}</span>
-                         </div>
-                         <button onclick="cambiarCant('${p.ID_Producto}', ${stepModal})" class="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white"><i class="ph-bold ph-plus"></i></button>
+                         <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ${qty<=1?'ph-trash':'ph-minus'}"></i></button>
+                         <span class="font-bold text-[var(--text-main)] min-w-[1.5rem] text-center">${qty}</span>
+                         <button onclick="cambiarCant('${p.ID_Producto}', 1)" class="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white"><i class="ph-bold ph-plus"></i></button>
                     </div>
                 `;
                 contenedor.appendChild(el);
@@ -824,22 +835,15 @@
             Object.entries(state.carrito).forEach(([id, qty]) => {
                 const p = state.productos.find(prod => prod.ID_Producto == id);
                 if (p) {
-                    const subtotal = p.Precio_Unitario * qty;
-                    totalVenta += subtotal;
-                    
-                    // Enriquecemos la info para el historial/ticket
-                    let detalleStr = `${qty} ${p.Unidad}`;
-                    if(esPesable(p.Unidad) && p.Peso_Promedio) {
-                        const piezas = Math.round(qty / p.Peso_Promedio);
-                        detalleStr += ` (~${piezas} pzas)`;
-                    }
+                    const info = calcularTotalItem(p, qty);
+                    totalVenta += info.total;
 
                     itemsArray.push({
                         id: p.ID_Producto,
                         nombre: p.Nombre,
-                        cantidad: qty,
-                        detalle: detalleStr,
-                        subtotal: subtotal
+                        cantidad_sistema: qty, // La cantidad de "items" o "bultos" seleccionados
+                        detalle: info.desc, // Texto amigable: "2 Bultos (~30kg)"
+                        subtotal: info.total
                     });
                 }
             });
@@ -889,9 +893,9 @@
         }
 
         function abrirWhatsapp(pedido, telefono) {
-            // Usamos el campo 'detalle' enriquecido si existe, sino fallback
-            const listaItems = pedido.items.map(i => `- ${i.detalle || (i.cantidad + ' un')} ${i.nombre}`).join('\n');
-            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total: $${pedido.total.toLocaleString()}*`;
+            // Usamos el campo 'detalle' enriquecido
+            const listaItems = pedido.items.map(i => `- ${i.detalle} ${i.nombre}`).join('\n');
+            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total Estimado: $${pedido.total.toLocaleString()}*`;
             const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
             const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
             window.open(url, '_blank');
@@ -1029,9 +1033,18 @@
                 const prodActual = state.productos.find(p => p.ID_Producto === itemPast.id);
                 
                 if (prodActual) {
+                    // Usamos la cantidad del sistema guardada (piezas/bultos)
+                    const cantRecuperar = itemPast.cantidad_sistema || itemPast.cantidad; // Fallback para pedidos viejos
+
                     if (!state.carrito[prodActual.ID_Producto]) state.carrito[prodActual.ID_Producto] = 0;
-                    state.carrito[prodActual.ID_Producto] += itemPast.cantidad;
+                    state.carrito[prodActual.ID_Producto] += cantRecuperar;
                     agregados++;
+                    
+                    // Detectar si era bulto para activar el switch (básico, si la descripcion dice bulto)
+                    if(itemPast.detalle && itemPast.detalle.toLowerCase().includes('bulto')) {
+                         state.modoBulto[prodActual.ID_Producto] = true;
+                    }
+
                 } else {
                     noEncontrados++;
                 }
