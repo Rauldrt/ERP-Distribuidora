@@ -158,34 +158,41 @@
             
             <!-- BUSCADOR INTELIGENTE DE CLIENTES -->
             <div class="relative z-50">
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="ph ph-users text-[var(--text-sub)] text-lg"></i>
-                    </div>
-                    
-                    <input type="text" id="client-search-input" 
-                        class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-20 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
-                        placeholder="Buscar Cliente (Voz o Texto)" 
-                        autocomplete="off"
-                        oninput="filtrarClientes(this.value)"
-                        onfocus="filtrarClientes(this.value, true)">
-                    
-                    <!-- ID Oculto del cliente seleccionado -->
-                    <input type="hidden" id="selected-client-id">
-                    <input type="hidden" id="selected-client-phone">
-                    <input type="hidden" id="selected-client-name">
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="ph ph-users text-[var(--text-sub)] text-lg"></i>
+                        </div>
+                        
+                        <input type="text" id="client-search-input" 
+                            class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-20 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
+                            placeholder="Buscar Cliente..." 
+                            autocomplete="off"
+                            oninput="filtrarClientes(this.value)"
+                            onfocus="filtrarClientes(this.value, true)">
+                        
+                        <!-- ID Oculto del cliente seleccionado -->
+                        <input type="hidden" id="selected-client-id">
+                        <input type="hidden" id="selected-client-phone">
+                        <input type="hidden" id="selected-client-name">
 
-                    <!-- Botones Dentro del Input -->
-                    <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
-                        <!-- Limpiar Cliente -->
-                        <button id="clear-client-btn" class="text-[var(--text-sub)] hidden p-1 hover:text-red-500 transition-colors" onclick="resetCliente()">
-                            <i class="ph-fill ph-x-circle text-lg"></i>
-                        </button>
-                        <!-- Micrófono Cliente -->
-                        <button id="mic-client-btn" class="text-[var(--primary)] p-2 rounded-full hover:bg-black/5 transition-colors" onclick="startVoice('client-search-input', filtrarClientes, 'mic-client-btn')">
-                            <i class="ph-bold ph-microphone text-lg"></i>
-                        </button>
+                        <!-- Botones Dentro del Input -->
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                            <!-- Limpiar Cliente -->
+                            <button id="clear-client-btn" class="text-[var(--text-sub)] hidden p-1 hover:text-red-500 transition-colors" onclick="resetCliente()">
+                                <i class="ph-fill ph-x-circle text-lg"></i>
+                            </button>
+                            <!-- Micrófono Cliente -->
+                            <button id="mic-client-btn" class="text-[var(--primary)] p-2 rounded-full hover:bg-black/5 transition-colors" onclick="startVoice('client-search-input', filtrarClientes, 'mic-client-btn')">
+                                <i class="ph-bold ph-microphone text-lg"></i>
+                            </button>
+                        </div>
                     </div>
+                    
+                    <!-- BOTÓN NUEVO CLIENTE -->
+                    <button onclick="toggleNewClientModal()" class="shrink-0 w-11 h-11 bg-[var(--primary)] text-white rounded-xl shadow-sm flex items-center justify-center active:scale-95 transition" title="Nuevo Cliente">
+                        <i class="ph-bold ph-user-plus text-xl"></i>
+                    </button>
                 </div>
 
                 <!-- Lista Desplegable -->
@@ -195,7 +202,7 @@
             </div>
 
             <!-- BUSCADOR DE PRODUCTOS -->
-            <div class="relative z-10">
+            <div class="relative z-10 pt-2">
                 <div class="md-search-bar h-12 flex items-center px-4 gap-2">
                     <i class="ph ph-magnifying-glass text-[var(--text-sub)] text-xl shrink-0"></i>
                     <input type="text" id="searchInput" placeholder="Buscar productos..." 
@@ -222,7 +229,6 @@
             <p>Conectando con la base de datos...</p>
         </div>
         
-        <!-- MODIFICACIÓN AQUÍ: Se agregó lg:grid-cols-3 -->
         <div id="productList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
             <!-- Aquí se inyectan las tarjetas -->
         </div>
@@ -285,12 +291,11 @@
         </div>
     </div>
 
-    <!-- 5. MODAL DE HISTORIAL (BÚSQUEDA FLEXIBLE + VOZ) -->
+    <!-- 5. MODAL DE HISTORIAL -->
     <div id="historyModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleHistory()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-lg rounded-2xl p-0 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
             
-            <!-- Header del Modal -->
             <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-[var(--surface-container)]">
                 <h2 class="text-xl font-bold text-[var(--text-main)]">Historial</h2>
                 <button onclick="toggleHistory()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
@@ -298,19 +303,15 @@
                 </button>
             </div>
 
-            <!-- Barra de Filtros -->
             <div class="p-3 border-b border-gray-100 dark:border-gray-800 flex gap-2 bg-[var(--surface-container)]">
                 <div class="flex-1 relative">
                     <input type="text" id="history-search-client" placeholder="Buscar por voz..." 
                            class="w-full bg-[var(--surface)] text-sm p-2 pl-3 pr-16 rounded-lg border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]"
                            oninput="renderizarHistorial()">
-                    
                     <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
-                        <!-- Limpiar Historial -->
                         <button id="clear-history-btn" class="hidden text-[var(--text-sub)] p-1 hover:text-red-500 transition-colors" onclick="clearHistorySearch()">
                             <i class="ph-fill ph-x-circle text-lg"></i>
                         </button>
-                        <!-- Micrófono Historial -->
                         <button id="mic-history-btn" class="text-[var(--primary)] p-1 hover:bg-black/5 rounded-full transition-colors" onclick="startVoice('history-search-client', renderizarHistorial, 'mic-history-btn')">
                             <i class="ph-bold ph-microphone text-lg"></i>
                         </button>
@@ -323,10 +324,7 @@
                 </div>
             </div>
 
-            <!-- Lista de Historial -->
-            <div id="historyListContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--surface)]">
-                <!-- Lista de historial -->
-            </div>
+            <div id="historyListContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--surface)]"></div>
             
             <div class="p-3 bg-[var(--surface-container)] text-center text-xs text-[var(--text-sub)] border-t border-gray-100 dark:border-gray-800">
                 Mostrando últimos 50 pedidos.
@@ -339,18 +337,54 @@
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleConfig()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
             <h2 class="text-xl font-bold mb-4 text-[var(--text-main)]">Ajustes</h2>
-            
             <div class="flex items-center justify-between mb-4">
                 <span class="text-[var(--text-main)]">Modo Oscuro</span>
                 <input type="checkbox" id="darkModeToggle" class="w-5 h-5" onchange="toggleDarkMode(this.checked)">
             </div>
-            
             <button onclick="recargarDatos()" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-medium mb-2">
                 <i class="ph-bold ph-arrows-clockwise"></i> Recargar Datos
             </button>
             <button onclick="localStorage.clear(); location.reload()" class="w-full py-3 text-red-500 border border-red-200 rounded-xl font-medium text-sm">
                 Restablecer App
             </button>
+        </div>
+    </div>
+
+    <!-- 7. MODAL NUEVO CLIENTE (NUEVO) -->
+    <div id="newClientModal" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleNewClientModal()"></div>
+        <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-[var(--text-main)]">Nuevo Cliente</h2>
+                <button onclick="toggleNewClientModal()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+            
+            <form id="formNewClient" onsubmit="guardarNuevoCliente(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Nombre Negocio *</label>
+                    <input type="text" id="nc-negocio" required class="w-full p-3 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Nombre Dueño/Contacto</label>
+                    <input type="text" id="nc-dueno" class="w-full p-3 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Teléfono (WhatsApp)</label>
+                    <input type="tel" id="nc-telefono" class="w-full p-3 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Dirección / Localidad</label>
+                    <input type="text" id="nc-direccion" class="w-full p-3 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]">
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition flex justify-center items-center gap-2">
+                        <i class="ph-bold ph-floppy-disk"></i> Guardar y Seleccionar
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -362,12 +396,13 @@
         // Variables de Estado
         let state = {
             productos: [],
-            clientes: [],
+            clientes: [],         // Clientes API + Locales
+            clientesLocales: [],  // Solo los creados en el dispositivo
             carrito: {}, 
             config: { darkMode: false },
             clienteSeleccionado: null,
             historial: [],
-            modoBulto: {} // {ID_Producto: true/false}
+            modoBulto: {} 
         };
 
         // --- 2. INICIO Y CARGA DE DATOS ---
@@ -380,13 +415,11 @@
             searchInput.addEventListener('input', (e) => {
                 const val = e.target.value;
                 renderizarProductos(val);
-                // Mostrar/Ocultar botón X de productos
                 const clearBtn = document.getElementById('clearSearch');
                 if(val.length > 0) clearBtn.classList.remove('hidden');
                 else clearBtn.classList.add('hidden');
             });
             
-            // Verificar conexión
             window.addEventListener('online', actualizarEstadoConexion);
             window.addEventListener('offline', actualizarEstadoConexion);
         });
@@ -395,6 +428,7 @@
             actualizarEstadoConexion();
             verificarPendientes();
             cargarHistorialLocal(); 
+            cargarClientesLocales(); // Cargar clientes creados offline/localmente
 
             try {
                 const [resProd, resCli] = await Promise.all([
@@ -403,10 +437,13 @@
                 ]);
 
                 state.productos = await resProd.json();
-                state.clientes = await resCli.json();
+                const clientesAPI = await resCli.json();
+                
+                // Unificar Clientes API + Locales
+                state.clientes = [...state.clientesLocales, ...clientesAPI];
 
                 localStorage.setItem('db_productos', JSON.stringify(state.productos));
-                localStorage.setItem('db_clientes', JSON.stringify(state.clientes));
+                localStorage.setItem('db_clientes', JSON.stringify(clientesAPI)); // Guardamos solo los de API para cache limpio
 
                 renderizarUI();
 
@@ -417,7 +454,8 @@
 
                 if (cachedProd && cachedCli) {
                     state.productos = JSON.parse(cachedProd);
-                    state.clientes = JSON.parse(cachedCli);
+                    const clientesAPI = JSON.parse(cachedCli);
+                    state.clientes = [...state.clientesLocales, ...clientesAPI];
                     renderizarUI();
                 } else {
                     document.getElementById('loadingState').innerHTML = `<p class="text-red-500">Sin conexión y sin datos guardados.</p>`;
@@ -428,6 +466,56 @@
         function renderizarUI() {
             document.getElementById('loadingState').style.display = 'none';
             renderizarProductos();
+        }
+
+        // --- LÓGICA DE CLIENTES LOCALES (NUEVO) ---
+        function cargarClientesLocales() {
+            const stored = localStorage.getItem('db_clientes_locales');
+            state.clientesLocales = stored ? JSON.parse(stored) : [];
+        }
+
+        function toggleNewClientModal() {
+            document.getElementById('newClientModal').classList.toggle('hidden');
+            if(!document.getElementById('newClientModal').classList.contains('hidden')){
+                document.getElementById('nc-negocio').focus();
+            }
+        }
+
+        function guardarNuevoCliente(e) {
+            e.preventDefault();
+            
+            const negocio = document.getElementById('nc-negocio').value.trim();
+            const dueno = document.getElementById('nc-dueno').value.trim();
+            const telefono = document.getElementById('nc-telefono').value.trim();
+            const direccion = document.getElementById('nc-direccion').value.trim();
+
+            if(!negocio) return;
+
+            // Crear objeto cliente
+            const nuevoCliente = {
+                ID_Cliente: `NUEVO-${Date.now()}`, // ID único temporal
+                Nombre_Negocio: negocio,
+                Dueño: dueno || "Sin Dueño",
+                Telefono: telefono,
+                Direccion: direccion,
+                EsLocal: true // Flag para identificarlo
+            };
+
+            // Guardar en estado local
+            state.clientesLocales.unshift(nuevoCliente);
+            localStorage.setItem('db_clientes_locales', JSON.stringify(state.clientesLocales));
+            
+            // Actualizar lista global
+            state.clientes.unshift(nuevoCliente);
+
+            // Seleccionar automáticamente
+            seleccionarCliente(nuevoCliente);
+            
+            // Reset y cerrar modal
+            document.getElementById('formNewClient').reset();
+            toggleNewClientModal();
+            
+            alert(`✅ Cliente "${negocio}" creado y seleccionado.`);
         }
 
         // --- 2.1 FUNCIONES AUXILIARES DE BÚSQUEDA INTELIGENTE ---
@@ -482,10 +570,7 @@
                     callbackFunction(speechResult);
                 }
                 
-                // Disparar evento input para que se actualicen los botones X
                 input.dispatchEvent(new Event('input'));
-                
-                // Si es el buscador de clientes, activamos el foco
                 if(inputId === 'client-search-input') {
                    input.focus();
                 }
@@ -500,12 +585,11 @@
         }
 
 
-        // --- 2.5 NUEVO SISTEMA DE BÚSQUEDA DE CLIENTES (FLEXIBLE) ---
+        // --- 2.5 SISTEMA DE BÚSQUEDA DE CLIENTES ---
         function filtrarClientes(filtro, mostrarTodos = false) {
             const dropdown = document.getElementById('client-dropdown');
             const clearBtn = document.getElementById('clear-client-btn');
 
-            // Mostrar botón X si hay texto
             if (filtro && filtro.length > 0) {
                 clearBtn.classList.remove('hidden');
             } else {
@@ -530,8 +614,14 @@
                 filtrados.slice(0, 50).forEach(c => { 
                     const li = document.createElement('li');
                     li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex flex-col";
+                    
+                    // Distintivo para clientes locales
+                    const badgeLocal = c.EsLocal ? `<span class="inline-block bg-blue-100 text-blue-800 text-[10px] px-1 rounded ml-2 font-bold">NUEVO</span>` : '';
+
                     li.innerHTML = `
-                        <span class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio}</span>
+                        <div class="flex items-center justify-between">
+                            <span class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio} ${badgeLocal}</span>
+                        </div>
                         <span class="text-xs text-[var(--text-sub)]">${c.Dueño} | ID: ${c.ID_Cliente}</span>
                     `;
                     li.onclick = () => seleccionarCliente(c);
@@ -549,9 +639,7 @@
             document.getElementById('selected-client-name').value = cliente.Nombre_Negocio;
             
             document.getElementById('client-dropdown').classList.add('hidden');
-            // Aseguramos que la X sea visible al seleccionar
             document.getElementById('clear-client-btn').classList.remove('hidden');
-            
             document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
         }
 
@@ -569,32 +657,27 @@
 
         function cerrarDropdowns(e) {
             const container = document.getElementById('client-search-input').parentElement.parentElement;
-            if (!container.contains(e.target)) {
+            // Verificar si el click fue dentro del contenedor del buscador o en el modal
+            const inModal = document.getElementById('newClientModal').contains(e.target);
+            if (!container.contains(e.target) && !inModal) {
                 document.getElementById('client-dropdown').classList.add('hidden');
             }
         }
 
         // --- RESTO DE LÓGICA (PRODUCTOS, CARRITO, ENVIO) ---
 
-        // Función robusta de detección (incluye peso > 0)
         function esPesable(p) {
-            // Normalizar unidad
             const u = (p.Unidad || "").toLowerCase();
-            // Verificar si explícitamente es unidad de peso
             if (u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo')) return true;
-            
-            // Si no dice unidad, miramos si tiene Peso Promedio configurado (mayor a 0 y distinto de 1)
-            // .toString().replace() es para manejar "4,5" como 4.5
             const peso = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 0;
             if (peso > 0 && peso !== 1) return true;
-            
             return false;
         }
 
         function toggleModoVenta(idProducto) {
             state.modoBulto[idProducto] = !state.modoBulto[idProducto];
             renderizarProductos(document.getElementById('searchInput').value);
-            actualizarCarritoUI(); // Actualizar totales también
+            actualizarCarritoUI();
         }
 
         function renderizarProductos(filtro = "") {
@@ -615,22 +698,19 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
-                // --- LÓGICA DE VISUALIZACIÓN ---
                 const esProductoPesable = esPesable(p);
                 const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
                 const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
                 const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
-                // 1. EL PRECIO GRANDE AZUL: Siempre el unitario, tal como se pidió.
                 const precioMostrar = p.Precio_Unitario;
 
-                // 2. ETIQUETAS: Para aclarar qué significa ese precio y qué se compra
                 let etiquetaUnidad = "Unitario"; 
                 let etiquetaDetalle = "";
 
                 if (esProductoPesable) {
-                    etiquetaUnidad = "x Kg"; // El precio es por Kilo
+                    etiquetaUnidad = "x Kg"; 
                     if (enModoBulto) {
                         etiquetaDetalle = `Bulto ~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg`;
                     } else {
@@ -643,13 +723,11 @@
                     }
                 }
                 
-                // Stock visual seguro (manejo de undefined)
                 const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `Stock: ${p.Stock_Actual} ${p.Unidad || ''}` : "Stock: --";
 
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
                 
-                // Switch HTML (Solo si Unidades_Bulto > 1)
                 let switchHtml = '';
                 if (tieneBulto) {
                     switchHtml = `
@@ -701,8 +779,6 @@
         function cambiarCant(id, delta) {
             if (!state.carrito[id]) state.carrito[id] = 0;
             state.carrito[id] += delta;
-            
-            // Ahora qty es SIEMPRE entero (representa unidades de venta seleccionadas)
             state.carrito[id] = Math.round(state.carrito[id]); 
 
             if (state.carrito[id] <= 0) delete state.carrito[id];
@@ -712,7 +788,6 @@
             actualizarCarritoUI();
         }
 
-        // Función auxiliar para calcular totales basada en la lógica unificada
         function calcularTotalItem(p, qty) {
             const esProductoPesable = esPesable(p);
             const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
@@ -721,13 +796,10 @@
             const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
             let factorPrecio = 1;
-            // Lógica de cálculo estricta solicitada
             if (esProductoPesable) {
                 if (tieneBulto && enModoBulto) {
-                     // Bulk pesable: Precio * Peso * CantidadBulto
                      factorPrecio = pesoPromedio * unidadesPorBulto;
                 } else {
-                     // Pieza pesable (Single): Precio * Peso
                      factorPrecio = pesoPromedio;
                 }
             } else {
@@ -847,18 +919,17 @@
                     itemsArray.push({
                         id: p.ID_Producto,
                         nombre: p.Nombre,
-                        cantidad_sistema: qty, // La cantidad de "items" o "bultos" seleccionados
-                        detalle: info.desc, // Texto amigable: "2 Bultos (~30kg)"
+                        cantidad_sistema: qty,
+                        detalle: info.desc,
                         subtotal: info.total
                     });
                 }
             });
 
-            // Generar ID único para historial
             const pedidoIdLocal = Date.now();
 
             const pedidoFinal = {
-                id_interno: pedidoIdLocal, // ID único local
+                id_interno: pedidoIdLocal, 
                 cliente: {
                     id: clienteId,
                     nombre: clienteNombre,
@@ -876,7 +947,6 @@
                         body: JSON.stringify(pedidoFinal)
                     });
                     
-                    // Si se envía bien, guardar en historial como ENVIADO
                     guardarEnHistorial(pedidoFinal, 'Enviado');
                     manejarExito(pedidoFinal, clienteTel);
                     
@@ -899,7 +969,6 @@
         }
 
         function abrirWhatsapp(pedido, telefono) {
-            // Usamos el campo 'detalle' enriquecido
             const listaItems = pedido.items.map(i => `- ${i.detalle} ${i.nombre}`).join('\n');
             const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total Estimado: $${pedido.total.toLocaleString()}*`;
             const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
@@ -907,7 +976,7 @@
             window.open(url, '_blank');
         }
 
-        // --- 5. LÓGICA DE HISTORIAL Y REPETIR PEDIDO (BÚSQUEDA FLEXIBLE) ---
+        // --- 5. LÓGICA DE HISTORIAL Y REPETIR PEDIDO ---
         function cargarHistorialLocal() {
             const historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
             state.historial = historial;
@@ -925,10 +994,9 @@
         function toggleHistory() {
             const modal = document.getElementById('historyModal');
             if (modal.classList.contains('hidden')) {
-                // Reset filtros al abrir
                 document.getElementById('history-search-client').value = '';
                 document.getElementById('history-search-date').value = '';
-                document.getElementById('clear-history-btn').classList.add('hidden'); // Ocultar X
+                document.getElementById('clear-history-btn').classList.add('hidden'); 
                 renderizarHistorial();
                 modal.classList.remove('hidden');
             } else {
@@ -947,19 +1015,14 @@
             const container = document.getElementById('historyListContainer');
             container.innerHTML = "";
             
-            // --- FILTROS ---
             const filtroTexto = document.getElementById('history-search-client').value;
-            const filtroFecha = document.getElementById('history-search-date').value; // YYYY-MM-DD
+            const filtroFecha = document.getElementById('history-search-date').value; 
             
-            // Mostrar/Ocultar botón X del historial
             const clearHistBtn = document.getElementById('clear-history-btn');
             if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
             else clearHistBtn.classList.add('hidden');
 
-            // Filtrado Flexible
             const historialFiltrado = state.historial.filter(p => {
-                // Preparamos "texto completo del pedido" para buscar
-                // Incluye: Cliente, ID del pedido, Total, y nombres de TODOS los productos
                 const nombresProductos = p.items.map(i => i.nombre).join(" ");
                 const textoPedido = `${p.cliente.nombre} ${p.id_interno} ${p.total} ${nombresProductos}`;
                 
@@ -1024,6 +1087,58 @@
                 `;
                 container.appendChild(el);
             });
+        }
+
+        function repetirPedido(idInterno) {
+            const pedido = state.historial.find(p => p.id_interno === idInterno);
+            if (!pedido) return;
+
+            if(!confirm(`¿Cargar los ${pedido.items.length} productos de este pedido al carrito actual?`)) return;
+
+            let agregados = 0;
+            let noEncontrados = 0;
+
+            pedido.items.forEach(itemPast => {
+                const prodActual = state.productos.find(p => p.ID_Producto === itemPast.id);
+                if (prodActual) {
+                    const cantRecuperar = itemPast.cantidad_sistema || itemPast.cantidad; 
+                    if (!state.carrito[prodActual.ID_Producto]) state.carrito[prodActual.ID_Producto] = 0;
+                    state.carrito[prodActual.ID_Producto] += cantRecuperar;
+                    agregados++;
+                    
+                    if(itemPast.detalle && itemPast.detalle.toLowerCase().includes('bulto')) {
+                         state.modoBulto[prodActual.ID_Producto] = true;
+                    }
+                } else {
+                    noEncontrados++;
+                }
+            });
+            
+            const clienteIdActual = document.getElementById('selected-client-id').value;
+            if(!clienteIdActual) {
+                 const clienteEnDB = state.clientes.find(c => c.ID_Cliente == pedido.cliente.id);
+                 if(clienteEnDB) {
+                     seleccionarCliente(clienteEnDB);
+                 }
+            }
+
+            actualizarCarritoUI();
+            renderizarProductos(document.getElementById('searchInput').value);
+            toggleHistory(); 
+
+            if(noEncontrados > 0) {
+                alert(`✅ Se agregaron ${agregados} productos.\n⚠️ ${noEncontrados} productos ya no existen en el catálogo.`);
+            } else {
+                alert(`✅ ¡Listo! Productos cargados.`);
+            }
+            toggleCartModal();
+        }
+
+        function abrirWhatsappHistorial(idInterno) {
+            const pedido = state.historial.find(p => p.id_interno === idInterno);
+            if(pedido) {
+                abrirWhatsapp(pedido, pedido.cliente.telefono);
+            }
         }
 
         // --- 6. OFFLINE & SYNC ---
