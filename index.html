@@ -133,7 +133,11 @@
                 </div>
                 <div>
                     <h1 class="font-bold text-xl leading-none text-[var(--text-main)]">Distribuidora</h1>
-                    <span class="text-xs text-[var(--text-sub)]">Gestión de Pedidos</span>
+                    <!-- MOSTRAR NOMBRE DEL VENDEDOR EN HEADER -->
+                    <span class="text-xs text-[var(--text-sub)] flex items-center gap-1">
+                        <i class="ph-bold ph-user-circle"></i> 
+                        <span id="header-vendedor-name">Sin Identificar</span>
+                    </span>
                 </div>
             </div>
 
@@ -255,18 +259,19 @@
         </div>
     </div>
 
-    <!-- 4. MODAL DEL CARRITO (CHECKOUT) -->
-    <div id="cartModal" class="fixed inset-0 z-50 hidden">
+    <!-- 4. MODAL DEL CARRITO (CHECKOUT - RESPONSIVE) -->
+    <div id="cartModal" class="fixed inset-0 z-50 hidden flex justify-center items-end md:items-center">
         <!-- Backdrop oscurecido -->
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleCartModal()"></div>
         
-        <!-- Contenido Modal -->
-        <div class="absolute bottom-0 left-0 w-full bg-[var(--surface-container)] rounded-t-[28px] h-[85vh] flex flex-col shadow-2xl transition-transform">
+        <!-- Contenido Modal: Estrecho y centrado en Desktop, Bottom Sheet en Móvil -->
+        <div class="relative w-full md:max-w-2xl bg-[var(--surface-container)] rounded-t-[28px] md:rounded-[28px] h-[85vh] md:h-auto md:max-h-[85vh] flex flex-col shadow-2xl transition-transform overflow-hidden m-0 md:m-4">
             <!-- Header Modal -->
-            <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0">
                 <h2 class="text-xl font-bold text-[var(--text-main)]">Resumen del Pedido</h2>
-                <button onclick="toggleCartModal()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
-                    <i class="ph-bold ph-caret-down"></i>
+                <button onclick="toggleCartModal()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)] hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                    <i class="ph-bold ph-x md:block hidden"></i> <!-- X en desktop -->
+                    <i class="ph-bold ph-caret-down md:hidden block"></i> <!-- Flecha abajo en móvil -->
                 </button>
             </div>
 
@@ -276,9 +281,9 @@
             </div>
 
             <!-- Footer Modal (Con Notas) -->
-            <div class="p-4 bg-[var(--surface)] border-t border-gray-100 dark:border-gray-800 pb-8">
+            <div class="p-4 bg-[var(--surface)] border-t border-gray-100 dark:border-gray-800 shrink-0 pb-8 md:pb-4">
                 
-                <!-- NUEVO: CAMPO DE NOTAS -->
+                <!-- CAMPO DE NOTAS -->
                 <div class="mb-3">
                     <label class="text-xs font-bold text-[var(--text-sub)] mb-1 block flex items-center gap-1"><i class="ph-bold ph-note-pencil"></i> Notas del Pedido</label>
                     <textarea id="order-notes" rows="2" placeholder="Ej: Entregar por la tarde, cuidado perro..." 
@@ -291,7 +296,7 @@
                 </div>
                 
                 <div class="grid grid-cols-1 gap-3">
-                    <button id="btn-submit" onclick="enviarPedido()" class="h-14 bg-green-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
+                    <button id="btn-submit" onclick="enviarPedido()" class="h-14 bg-green-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition hover:bg-green-700">
                         <i class="ph-bold ph-check"></i> Confirmar Pedido
                     </button>
                 </div>
@@ -345,10 +350,25 @@
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleConfig()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
             <h2 class="text-xl font-bold mb-4 text-[var(--text-main)]">Ajustes</h2>
-            <div class="flex items-center justify-between mb-4">
+            
+            <!-- CAMPO NOMBRE DEL VENDEDOR -->
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Tu Nombre (Vendedor)</label>
+                <div class="relative">
+                    <input type="text" id="config-vendedor" 
+                           class="w-full p-3 pl-9 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-colors text-sm font-medium" 
+                           placeholder="Ej: Juan Pérez" 
+                           oninput="guardarNombreVendedor(this.value)">
+                    <i class="ph-bold ph-user absolute left-3 top-3 text-[var(--text-sub)]"></i>
+                </div>
+                <p class="text-[10px] text-[var(--text-sub)] mt-1 ml-1">Este nombre se adjuntará a todos tus pedidos.</p>
+            </div>
+
+            <div class="flex items-center justify-between mb-4 pt-2 border-t border-gray-100 dark:border-gray-800">
                 <span class="text-[var(--text-main)]">Modo Oscuro</span>
                 <input type="checkbox" id="darkModeToggle" class="w-5 h-5" onchange="toggleDarkMode(this.checked)">
             </div>
+            
             <button onclick="recargarDatos()" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-medium mb-2">
                 <i class="ph-bold ph-arrows-clockwise"></i> Recargar Datos
             </button>
@@ -420,7 +440,7 @@
             clientes: [],         // Clientes API + Locales
             clientesLocales: [],  // Solo los creados en el dispositivo
             carrito: {}, 
-            config: { darkMode: false },
+            config: { darkMode: false, nombreVendedor: "" }, // AÑADIDO: nombreVendedor
             clienteSeleccionado: null,
             historial: [],
             modoBulto: {} 
@@ -489,7 +509,7 @@
             renderizarProductos();
         }
 
-        // --- LÓGICA DE CLIENTES LOCALES (NUEVO) ---
+        // --- LÓGICA DE CLIENTES LOCALES ---
         function cargarClientesLocales() {
             const stored = localStorage.getItem('db_clientes_locales');
             state.clientesLocales = stored ? JSON.parse(stored) : [];
@@ -963,7 +983,8 @@
             const clienteId = document.getElementById('selected-client-id').value;
             const clienteNombre = document.getElementById('selected-client-name').value;
             const clienteTel = document.getElementById('selected-client-phone').value;
-            const notas = document.getElementById('order-notes').value.trim(); // NUEVO: Capturar notas
+            const notas = document.getElementById('order-notes').value.trim(); 
+            const vendedor = state.config.nombreVendedor || "Sin Identificar"; // NUEVO
             
             if (!clienteId) {
                 alert("⚠️ Por favor BUSCA y SELECCIONA un cliente arriba.");
@@ -1010,8 +1031,9 @@
                     nombre: clienteNombre,
                     telefono: clienteTel
                 },
+                vendedor: vendedor, // NUEVO: Enviar Vendedor
                 total: totalVenta,
-                notas: notas, // Guardar nota
+                notas: notas,
                 items: itemsArray,
                 fechaLocal: new Date().toLocaleString()
             };
@@ -1052,6 +1074,10 @@
             if(pedido.notas) {
                 mensaje += `\n\n📝 *Nota:* ${pedido.notas}`;
             }
+
+            // NUEVO: Firma vendedor
+            const vendedor = state.config.nombreVendedor || "Vendedor";
+            mensaje += `\n\n_Enviado por: ${vendedor}_`;
 
             const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
             const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
@@ -1272,12 +1298,28 @@
             else document.body.classList.remove('dark-mode');
         }
 
+        // NUEVO: Guardar nombre vendedor
+        function guardarNombreVendedor(nombre) {
+            state.config.nombreVendedor = nombre;
+            localStorage.setItem('app_config', JSON.stringify(state.config));
+            
+            // Actualizar UI en tiempo real
+            const display = document.getElementById('header-vendedor-name');
+            if(display) display.textContent = nombre || "Sin Identificar";
+        }
+
         function cargarConfigLocal() {
             const cfg = JSON.parse(localStorage.getItem('app_config') || '{}');
             state.config = { ...state.config, ...cfg };
             if (state.config.darkMode) {
                 document.getElementById('darkModeToggle').checked = true;
                 document.body.classList.add('dark-mode');
+            }
+            
+            // Cargar nombre vendedor
+            if(state.config.nombreVendedor) {
+                document.getElementById('config-vendedor').value = state.config.nombreVendedor;
+                document.getElementById('header-vendedor-name').textContent = state.config.nombreVendedor;
             }
         }
         
