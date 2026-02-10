@@ -275,8 +275,16 @@
                 <!-- Items se generan aquí -->
             </div>
 
-            <!-- Footer Modal -->
+            <!-- Footer Modal (Con Notas) -->
             <div class="p-4 bg-[var(--surface)] border-t border-gray-100 dark:border-gray-800 pb-8">
+                
+                <!-- NUEVO: CAMPO DE NOTAS -->
+                <div class="mb-3">
+                    <label class="text-xs font-bold text-[var(--text-sub)] mb-1 block flex items-center gap-1"><i class="ph-bold ph-note-pencil"></i> Notas del Pedido</label>
+                    <textarea id="order-notes" rows="2" placeholder="Ej: Entregar por la tarde, cuidado perro..." 
+                        class="w-full p-2.5 rounded-xl bg-[var(--surface-container)] border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] resize-none transition-all placeholder-gray-400"></textarea>
+                </div>
+
                 <div class="flex justify-between items-end mb-4">
                     <span class="text-sm text-[var(--text-sub)]">Total a Pagar</span>
                     <span class="text-3xl font-bold text-[var(--primary)]" id="modalTotal">$0</span>
@@ -379,6 +387,19 @@
                     <input type="text" id="nc-direccion" class="w-full p-3 rounded-xl bg-[var(--surface)] border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]">
                 </div>
 
+                <!-- CAMPO GEOLOCALIZACIÓN -->
+                <div>
+                    <label class="block text-xs font-bold text-[var(--text-sub)] mb-1">Ubicación GPS</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="obtenerUbicacion()" id="btn-geo" class="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-[var(--text-main)] rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-center gap-2 text-sm font-medium transition hover:bg-gray-200 dark:hover:bg-gray-600">
+                            <i class="ph-bold ph-map-pin"></i> <span>Obtener Ubicación</span>
+                        </button>
+                        <input type="hidden" id="nc-lat">
+                        <input type="hidden" id="nc-lon">
+                    </div>
+                    <p id="geo-status" class="text-[10px] text-[var(--text-sub)] mt-1 ml-1 hidden"></p>
+                </div>
+
                 <div class="pt-2">
                     <button type="submit" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition flex justify-center items-center gap-2">
                         <i class="ph-bold ph-floppy-disk"></i> Guardar y Seleccionar
@@ -475,10 +496,59 @@
         }
 
         function toggleNewClientModal() {
-            document.getElementById('newClientModal').classList.toggle('hidden');
-            if(!document.getElementById('newClientModal').classList.contains('hidden')){
+            const modal = document.getElementById('newClientModal');
+            modal.classList.toggle('hidden');
+            if(!modal.classList.contains('hidden')){
                 document.getElementById('nc-negocio').focus();
+                // Reset de estado GPS al abrir
+                const btn = document.getElementById('btn-geo');
+                const status = document.getElementById('geo-status');
+                document.getElementById('nc-lat').value = "";
+                document.getElementById('nc-lon').value = "";
+                btn.className = "flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-[var(--text-main)] rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-center gap-2 text-sm font-medium transition hover:bg-gray-200 dark:hover:bg-gray-600";
+                btn.innerHTML = `<i class="ph-bold ph-map-pin"></i> <span>Obtener Ubicación</span>`;
+                btn.disabled = false;
+                status.classList.add('hidden');
             }
+        }
+
+        function obtenerUbicacion() {
+            const btn = document.getElementById('btn-geo');
+            const status = document.getElementById('geo-status');
+            const latInput = document.getElementById('nc-lat');
+            const lonInput = document.getElementById('nc-lon');
+
+            if (!navigator.geolocation) {
+                alert("Tu navegador no soporta geolocalización.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="ph-duotone ph-spinner animate-spin"></i> Obteniendo...`;
+            status.textContent = "Buscando satélites...";
+            status.classList.remove('hidden');
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    latInput.value = lat;
+                    lonInput.value = lon;
+
+                    btn.className = "flex-1 py-3 bg-green-100 text-green-700 border border-green-200 rounded-xl flex items-center justify-center gap-2 text-sm font-bold";
+                    btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Ubicación Guardada`;
+                    status.className = "text-[10px] text-green-600 mt-1 ml-1";
+                    status.textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
+                },
+                (err) => {
+                    console.error(err);
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="ph-bold ph-map-pin"></i> Reintentar`;
+                    status.className = "text-[10px] text-red-500 mt-1 ml-1";
+                    status.textContent = "Error: No se pudo obtener la ubicación. Verifica permisos.";
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         }
 
         function guardarNuevoCliente(e) {
@@ -488,6 +558,8 @@
             const dueno = document.getElementById('nc-dueno').value.trim();
             const telefono = document.getElementById('nc-telefono').value.trim();
             const direccion = document.getElementById('nc-direccion').value.trim();
+            const lat = document.getElementById('nc-lat').value;
+            const lon = document.getElementById('nc-lon').value;
 
             if(!negocio) return;
 
@@ -498,6 +570,8 @@
                 Dueño: dueno || "Sin Dueño",
                 Telefono: telefono,
                 Direccion: direccion,
+                Latitud: lat,
+                Longitud: lon,
                 EsLocal: true // Flag para identificarlo
             };
 
@@ -889,6 +963,7 @@
             const clienteId = document.getElementById('selected-client-id').value;
             const clienteNombre = document.getElementById('selected-client-name').value;
             const clienteTel = document.getElementById('selected-client-phone').value;
+            const notas = document.getElementById('order-notes').value.trim(); // NUEVO: Capturar notas
             
             if (!clienteId) {
                 alert("⚠️ Por favor BUSCA y SELECCIONA un cliente arriba.");
@@ -936,6 +1011,7 @@
                     telefono: clienteTel
                 },
                 total: totalVenta,
+                notas: notas, // Guardar nota
                 items: itemsArray,
                 fechaLocal: new Date().toLocaleString()
             };
@@ -970,7 +1046,13 @@
 
         function abrirWhatsapp(pedido, telefono) {
             const listaItems = pedido.items.map(i => `- ${i.detalle} ${i.nombre}`).join('\n');
-            const mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total Estimado: $${pedido.total.toLocaleString()}*`;
+            let mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total Estimado: $${pedido.total.toLocaleString()}*`;
+            
+            // NUEVO: Agregar nota al mensaje
+            if(pedido.notas) {
+                mensaje += `\n\n📝 *Nota:* ${pedido.notas}`;
+            }
+
             const telLimpio = telefono ? telefono.replace(/[^0-9]/g, '') : "";
             const url = telLimpio ? `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}` : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
             window.open(url, '_blank');
@@ -1062,6 +1144,13 @@
                 
                 const iconoEstado = esPendiente ? '<i class="ph-bold ph-clock"></i>' : '<i class="ph-bold ph-check-circle"></i>';
 
+                // NUEVO: Mostrar nota en historial si existe
+                const notasHtml = p.notas ? `
+                    <div class="mt-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 p-2 rounded-lg border border-yellow-100 dark:border-yellow-800 flex gap-1 items-start">
+                        <i class="ph-fill ph-note-pencil mt-0.5 shrink-0"></i>
+                        <span class="italic">"${p.notas}"</span>
+                    </div>` : '';
+
                 el.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
                         <div>
@@ -1072,6 +1161,9 @@
                             ${iconoEstado} ${p.estado}
                         </span>
                     </div>
+                    
+                    ${notasHtml}
+
                     <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
                         <div class="text-xs text-[var(--text-sub)]">${p.items.length} productos</div>
                         <div class="font-bold text-[var(--primary)]">$${p.total.toLocaleString()}</div>
@@ -1087,58 +1179,6 @@
                 `;
                 container.appendChild(el);
             });
-        }
-
-        function repetirPedido(idInterno) {
-            const pedido = state.historial.find(p => p.id_interno === idInterno);
-            if (!pedido) return;
-
-            if(!confirm(`¿Cargar los ${pedido.items.length} productos de este pedido al carrito actual?`)) return;
-
-            let agregados = 0;
-            let noEncontrados = 0;
-
-            pedido.items.forEach(itemPast => {
-                const prodActual = state.productos.find(p => p.ID_Producto === itemPast.id);
-                if (prodActual) {
-                    const cantRecuperar = itemPast.cantidad_sistema || itemPast.cantidad; 
-                    if (!state.carrito[prodActual.ID_Producto]) state.carrito[prodActual.ID_Producto] = 0;
-                    state.carrito[prodActual.ID_Producto] += cantRecuperar;
-                    agregados++;
-                    
-                    if(itemPast.detalle && itemPast.detalle.toLowerCase().includes('bulto')) {
-                         state.modoBulto[prodActual.ID_Producto] = true;
-                    }
-                } else {
-                    noEncontrados++;
-                }
-            });
-            
-            const clienteIdActual = document.getElementById('selected-client-id').value;
-            if(!clienteIdActual) {
-                 const clienteEnDB = state.clientes.find(c => c.ID_Cliente == pedido.cliente.id);
-                 if(clienteEnDB) {
-                     seleccionarCliente(clienteEnDB);
-                 }
-            }
-
-            actualizarCarritoUI();
-            renderizarProductos(document.getElementById('searchInput').value);
-            toggleHistory(); 
-
-            if(noEncontrados > 0) {
-                alert(`✅ Se agregaron ${agregados} productos.\n⚠️ ${noEncontrados} productos ya no existen en el catálogo.`);
-            } else {
-                alert(`✅ ¡Listo! Productos cargados.`);
-            }
-            toggleCartModal();
-        }
-
-        function abrirWhatsappHistorial(idInterno) {
-            const pedido = state.historial.find(p => p.id_interno === idInterno);
-            if(pedido) {
-                abrirWhatsapp(pedido, pedido.cliente.telefono);
-            }
         }
 
         // --- 6. OFFLINE & SYNC ---
