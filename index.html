@@ -222,7 +222,8 @@
             <p>Conectando con la base de datos...</p>
         </div>
         
-        <div id="productList" class="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+        <!-- MODIFICACIÓN AQUÍ: Se agregó lg:grid-cols-3 -->
+        <div id="productList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-4">
             <!-- Aquí se inyectan las tarjetas -->
         </div>
     </main>
@@ -1023,64 +1024,6 @@
                 `;
                 container.appendChild(el);
             });
-        }
-
-        function repetirPedido(idInterno) {
-            const pedido = state.historial.find(p => p.id_interno === idInterno);
-            if (!pedido) return;
-
-            if(!confirm(`¿Cargar los ${pedido.items.length} productos de este pedido al carrito actual?`)) return;
-
-            let agregados = 0;
-            let noEncontrados = 0;
-
-            pedido.items.forEach(itemPast => {
-                const prodActual = state.productos.find(p => p.ID_Producto === itemPast.id);
-                
-                if (prodActual) {
-                    // Usamos la cantidad del sistema guardada (piezas/bultos)
-                    const cantRecuperar = itemPast.cantidad_sistema || itemPast.cantidad; // Fallback para pedidos viejos
-
-                    if (!state.carrito[prodActual.ID_Producto]) state.carrito[prodActual.ID_Producto] = 0;
-                    state.carrito[prodActual.ID_Producto] += cantRecuperar;
-                    agregados++;
-                    
-                    // Detectar si era bulto para activar el switch (básico, si la descripcion dice bulto)
-                    if(itemPast.detalle && itemPast.detalle.toLowerCase().includes('bulto')) {
-                         state.modoBulto[prodActual.ID_Producto] = true;
-                    }
-
-                } else {
-                    noEncontrados++;
-                }
-            });
-            
-            const clienteIdActual = document.getElementById('selected-client-id').value;
-            if(!clienteIdActual) {
-                 const clienteEnDB = state.clientes.find(c => c.ID_Cliente == pedido.cliente.id);
-                 if(clienteEnDB) {
-                     seleccionarCliente(clienteEnDB);
-                 }
-            }
-
-            actualizarCarritoUI();
-            renderizarProductos(document.getElementById('searchInput').value);
-            toggleHistory(); 
-
-            if(noEncontrados > 0) {
-                alert(`✅ Se agregaron ${agregados} productos.\n⚠️ ${noEncontrados} productos ya no existen en el catálogo.`);
-            } else {
-                alert(`✅ ¡Listo! Productos cargados.`);
-            }
-            
-            toggleCartModal();
-        }
-
-        function abrirWhatsappHistorial(idInterno) {
-            const pedido = state.historial.find(p => p.id_interno === idInterno);
-            if(pedido) {
-                abrirWhatsapp(pedido, pedido.cliente.telefono);
-            }
         }
 
         // --- 6. OFFLINE & SYNC ---
