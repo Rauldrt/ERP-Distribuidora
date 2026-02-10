@@ -575,10 +575,19 @@
 
         // --- RESTO DE LÓGICA (PRODUCTOS, CARRITO, ENVIO) ---
 
-        // Función auxiliar para detectar si un producto es "pesable"
-        function esPesable(unidad) {
-            const u = (unidad || "").toLowerCase();
-            return u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo');
+        // Función robusta de detección (incluye peso > 0)
+        function esPesable(p) {
+            // Normalizar unidad
+            const u = (p.Unidad || "").toLowerCase();
+            // Verificar si explícitamente es unidad de peso
+            if (u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo')) return true;
+            
+            // Si no dice unidad, miramos si tiene Peso Promedio configurado (mayor a 0 y distinto de 1)
+            // .toString().replace() es para manejar "4,5" como 4.5
+            const peso = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 0;
+            if (peso > 0 && peso !== 1) return true;
+            
+            return false;
         }
 
         function toggleModoVenta(idProducto) {
@@ -606,8 +615,8 @@
                 const isSelected = qty > 0;
                 
                 // --- LÓGICA DE PRECIOS UNIFICADA ---
-                const esProductoPesable = esPesable(p.Unidad);
-                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+                const esProductoPesable = esPesable(p);
+                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
                 const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
                 const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
@@ -650,6 +659,9 @@
                         etiquetaTipo = "Unitario";
                     }
                 }
+                
+                // Stock visual seguro
+                const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `${p.Stock_Actual} ${p.Unidad || ''}` : "";
 
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
@@ -675,7 +687,7 @@
                         
                         <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight">${p.Nombre}</h3>
                         ${switchHtml}
-                        <p class="text-xs text-[var(--text-sub)] mt-0.5">Stock: ${p.Stock_Actual} ${p.Unidad}</p>
+                        <p class="text-xs text-[var(--text-sub)] mt-0.5">${stockDisplay}</p>
                     </div>
                     
                     <div class="flex items-end justify-between mt-auto pt-2">
@@ -719,8 +731,8 @@
 
         // Función auxiliar para calcular totales basada en la lógica unificada
         function calcularTotalItem(p, qty) {
-            const esProductoPesable = esPesable(p.Unidad);
-            const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
+            const esProductoPesable = esPesable(p);
+            const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
             const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
             const tieneBulto = unidadesPorBulto > 1;
             const enModoBulto = state.modoBulto[p.ID_Producto] || false;
