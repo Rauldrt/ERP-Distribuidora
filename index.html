@@ -605,28 +605,32 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
-                // --- LÓGICA UNIFICADA ---
+                // --- LÓGICA DE PRECIOS UNIFICADA ---
                 const esProductoPesable = esPesable(p.Unidad);
                 const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
                 const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
                 const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
-                // Calculamos el "Factor de Multiplicación" para el precio
-                // Este factor convierte "1 Click" en el precio real ($)
+                // Definimos el factor de precio base (Precio de 1 ITEM en el carrito)
                 let factorPrecio = 1;
 
                 if (esProductoPesable) {
-                    // Si es pesable: (Peso Promedio) * (Unidades si es bulto, sino 1)
-                    factorPrecio = pesoPromedio * (enModoBulto ? unidadesPorBulto : 1);
+                    if (tieneBulto && enModoBulto) {
+                        // Caso: Bulto Pesable -> PrecioUnitario * UnidadesBulto * PesoPromedio
+                        factorPrecio = pesoPromedio * unidadesPorBulto;
+                    } else {
+                        // Caso: Pieza Pesable (Single) -> PrecioUnitario * PesoPromedio
+                        factorPrecio = pesoPromedio;
+                    }
                 } else {
-                    // Si NO es pesable: (Unidades si es bulto, sino 1)
+                    // No Pesable (Unidades normales)
                     factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
                 }
 
                 const precioVisual = p.Precio_Unitario * factorPrecio;
 
-                // Definir etiquetas visuales
+                // Etiquetas Visuales
                 let etiquetaTipo = "";
                 let etiquetaPeso = "";
 
@@ -635,7 +639,7 @@
                         etiquetaTipo = "x Bulto";
                         etiquetaPeso = `(~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg)`;
                     } else {
-                        etiquetaTipo = "x Pieza";
+                        etiquetaTipo = "x Pieza"; // Identificador "1 pieza" solicitado
                         etiquetaPeso = `(~${pesoPromedio}kg)`;
                     }
                 } else {
@@ -650,7 +654,7 @@
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
                 
-                // Switch HTML
+                // Switch HTML (Solo si Unidades_Bulto > 1)
                 let switchHtml = '';
                 if (tieneBulto) {
                     switchHtml = `
@@ -718,16 +722,23 @@
             const esProductoPesable = esPesable(p.Unidad);
             const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio) : 1;
             const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
+            const tieneBulto = unidadesPorBulto > 1;
             const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
             let factorPrecio = 1;
+            // Lógica de cálculo estricta solicitada
             if (esProductoPesable) {
-                factorPrecio = pesoPromedio * (enModoBulto ? unidadesPorBulto : 1);
+                if (tieneBulto && enModoBulto) {
+                     // Bulk pesable: Precio * Peso * CantidadBulto
+                     factorPrecio = pesoPromedio * unidadesPorBulto;
+                } else {
+                     // Pieza pesable (Single): Precio * Peso
+                     factorPrecio = pesoPromedio;
+                }
             } else {
                 factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
             }
             
-            // Retorna: { precioTotal, descripcionCantidad }
             const total = p.Precio_Unitario * factorPrecio * qty;
             
             let desc = "";
