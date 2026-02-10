@@ -614,54 +614,36 @@
                 const qty = state.carrito[p.ID_Producto] || 0;
                 const isSelected = qty > 0;
                 
-                // --- LÓGICA DE PRECIOS UNIFICADA ---
+                // --- LÓGICA DE VISUALIZACIÓN ---
                 const esProductoPesable = esPesable(p);
                 const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
                 const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
                 const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
-                // Definimos el factor de precio base (Precio de 1 ITEM en el carrito)
-                let factorPrecio = 1;
+                // 1. EL PRECIO GRANDE AZUL: Siempre el unitario, tal como se pidió.
+                const precioMostrar = p.Precio_Unitario;
+
+                // 2. ETIQUETAS: Para aclarar qué significa ese precio y qué se compra
+                let etiquetaUnidad = "Unitario"; 
+                let etiquetaDetalle = "";
 
                 if (esProductoPesable) {
-                    if (tieneBulto && enModoBulto) {
-                        // Caso: Bulto Pesable -> PrecioUnitario * UnidadesBulto * PesoPromedio
-                        factorPrecio = pesoPromedio * unidadesPorBulto;
+                    etiquetaUnidad = "x Kg"; // El precio es por Kilo
+                    if (enModoBulto) {
+                        etiquetaDetalle = `Bulto ~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg`;
                     } else {
-                        // Caso: Pieza Pesable (Single) -> PrecioUnitario * PesoPromedio
-                        factorPrecio = pesoPromedio;
+                        etiquetaDetalle = `Pieza ~${pesoPromedio}kg`;
                     }
                 } else {
-                    // No Pesable (Unidades normales)
-                    factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
-                }
-
-                const precioVisual = p.Precio_Unitario * factorPrecio;
-
-                // Etiquetas Visuales
-                let etiquetaTipo = "";
-                let etiquetaPeso = "";
-
-                if (esProductoPesable) {
+                    etiquetaUnidad = "Unitario";
                     if (enModoBulto) {
-                        etiquetaTipo = "x Bulto";
-                        etiquetaPeso = `(~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg)`;
-                    } else {
-                        etiquetaTipo = "x Pieza"; // Identificador "1 pieza" solicitado
-                        etiquetaPeso = `(~${pesoPromedio}kg)`;
-                    }
-                } else {
-                    if (enModoBulto) {
-                        etiquetaTipo = "x Bulto";
-                        etiquetaPeso = `(${unidadesPorBulto} u.)`;
-                    } else {
-                        etiquetaTipo = "Unitario";
+                        etiquetaDetalle = `Pack ${unidadesPorBulto}u`;
                     }
                 }
                 
-                // Stock visual seguro
-                const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `${p.Stock_Actual} ${p.Unidad || ''}` : "";
+                // Stock visual seguro (manejo de undefined)
+                const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `Stock: ${p.Stock_Actual} ${p.Unidad || ''}` : "Stock: --";
 
                 const card = document.createElement('div');
                 card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
@@ -692,10 +674,10 @@
                     
                     <div class="flex items-end justify-between mt-auto pt-2">
                         <div class="flex flex-col">
-                            <span class="text-lg font-bold text-[var(--primary)]">$${precioVisual.toLocaleString()}</span>
+                            <span class="text-lg font-bold text-[var(--primary)]">$${precioMostrar.toLocaleString()}</span>
                             <div class="flex flex-col leading-none">
-                                <span class="text-[10px] text-[var(--text-sub)] font-bold">${etiquetaTipo}</span>
-                                <span class="text-[9px] text-[var(--text-sub)]">${etiquetaPeso}</span>
+                                <span class="text-[10px] text-[var(--text-sub)] font-bold">${etiquetaUnidad}</span>
+                                <span class="text-[9px] text-[var(--text-sub)] italic">${etiquetaDetalle}</span>
                             </div>
                         </div>
                         
