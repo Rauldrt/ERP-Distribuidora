@@ -322,7 +322,7 @@
 
             <div class="p-3 border-b border-gray-100 dark:border-gray-800 flex gap-2 bg-[var(--surface-container)]">
                 <div class="flex-1 relative">
-                    <input type="text" id="history-search-client" placeholder="Buscar por voz..." 
+                    <input type="text" id="history-search-client" placeholder="Buscar cliente, ID o producto..." 
                            class="w-full bg-[var(--surface)] text-sm p-2 pl-3 pr-16 rounded-lg border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]"
                            oninput="renderizarHistorial()">
                     <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
@@ -376,7 +376,7 @@
             <button onclick="recargarDatos()" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-medium mb-2">
                 <i class="ph-bold ph-arrows-clockwise"></i> Recargar Datos
             </button>
-            <button onclick="localStorage.clear(); location.reload()" class="w-full py-3 text-red-500 border border-red-200 rounded-xl font-medium text-sm">
+            <button onclick="localStorage.clear()" class="w-full py-3 text-red-500 border border-red-200 rounded-xl font-medium text-sm" onmousedown="setTimeout(()=>location.reload(),200)">
                 Restablecer App
             </button>
         </div>
@@ -1043,8 +1043,14 @@
                 
                 const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `Stock: ${p.Stock_Actual} ${p.Unidad || ''}` : "Stock: --";
 
+                // === LÓGICA DE IMAGEN ===
+                const tieneImg = p.Imagen && p.Imagen.length > 5;
+                const imgHtml = tieneImg
+                    ? `<img src="${p.Imagen}" onerror="this.onerror=null;this.parentNode.innerHTML='<div class=\'w-20 h-20 bg-gray-100 flex items-center justify-center text-gray-300 rounded-lg\'><i class=\'ph-bold ph-image text-2xl\'></i></div>'" class="w-20 h-20 object-cover rounded-lg bg-white shrink-0 border border-gray-100">`
+                    : `<div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 text-gray-300 border border-gray-100"><i class="ph-bold ph-image text-2xl"></i></div>`;
+
                 const card = document.createElement('div');
-                card.className = `md-card p-4 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
+                card.className = `md-card p-3 relative flex flex-col justify-between h-full border-2 ${isSelected ? 'border-[var(--primary)] bg-blue-50 dark:bg-blue-900/20' : 'border-transparent'}`;
                 
                 let switchHtml = '';
                 if (tieneBulto) {
@@ -1058,18 +1064,24 @@
                 }
 
                 card.innerHTML = `
-                    <div class="mb-2">
-                        <div class="flex justify-between items-start">
-                            <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider mb-1 block w-fit">${p.Categoria}</span>
-                            ${esProductoPesable ? `<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Pesable</span>` : ''}
+                    <div class="flex gap-3 mb-2">
+                        ${imgHtml} <!-- IMAGEN A LA IZQUIERDA -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start">
+                                <span class="text-[10px] font-bold text-[var(--text-sub)] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-wider mb-1 block w-fit truncate max-w-[80px]">${p.Categoria}</span>
+                                ${esProductoPesable ? `<span class="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200 whitespace-nowrap">Pesable</span>` : ''}
+                            </div>
+                            
+                            <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight line-clamp-2">${p.Nombre}</h3>
+                            <p class="text-xs text-[var(--text-sub)] mt-1">${stockDisplay}</p>
                         </div>
-                        
-                        <h3 class="text-sm font-medium text-[var(--text-main)] mt-1 leading-tight">${p.Nombre}</h3>
+                    </div>
+
+                    <div>
                         ${switchHtml}
-                        <p class="text-xs text-[var(--text-sub)] mt-0.5">${stockDisplay}</p>
                     </div>
                     
-                    <div class="flex items-end justify-between mt-auto pt-2">
+                    <div class="flex items-end justify-between mt-auto pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
                         <div class="flex flex-col">
                             <span class="text-lg font-bold text-[var(--primary)]">$${precioMostrar.toLocaleString()}</span>
                             <div class="flex flex-col leading-none">
@@ -1162,15 +1174,43 @@
                 if (!p) return;
 
                 const info = calcularTotalItem(p, qty);
+                
+                // REPLICAMOS LOGICA DE VISUALIZACIÓN DE CARD
+                const configVenta = obtenerConfigVenta(p);
+                const { esProductoPesable, pesoPromedio, unidadesPorBulto, enModoBulto, precioUnitario } = configVenta;
+
+                let etiquetaUnidad = "Unitario"; 
+                let etiquetaDetalle = "";
+
+                if (esProductoPesable) {
+                    etiquetaUnidad = `$${precioUnitario.toLocaleString()} x Kg`; 
+                    if (enModoBulto) {
+                        etiquetaDetalle = `Bulto ~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg`;
+                    } else {
+                        etiquetaDetalle = `Pieza ~${pesoPromedio.toFixed(1)}kg`;
+                    }
+                } else {
+                    etiquetaUnidad = "Unitario";
+                    if (enModoBulto) {
+                        etiquetaDetalle = `Pack ${unidadesPorBulto}u`;
+                    }
+                }
 
                 const el = document.createElement('div');
                 el.className = "flex items-center justify-between p-3 bg-[var(--surface)] rounded-xl border border-gray-100 dark:border-gray-800";
                 
                 el.innerHTML = `
                     <div class="flex-1 pr-2">
-                        <div class="text-sm font-medium text-[var(--text-main)]">${p.Nombre}</div>
+                        <div class="text-sm font-medium text-[var(--text-main)] mb-1">${p.Nombre}</div>
+                        
+                        <!-- INFO EXTRA ESTILO CARD -->
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] text-[var(--text-sub)] font-black uppercase tracking-tighter bg-gray-100 dark:bg-gray-700 px-1 rounded">${etiquetaUnidad}</span>
+                            <span class="text-[9px] text-[var(--text-sub)] italic">${etiquetaDetalle}</span>
+                        </div>
+
                         <div class="text-[var(--primary)] font-bold text-xs">${info.desc}</div>
-                        <div class="text-xs text-[var(--text-sub)] mt-1">Total: $${info.total.toLocaleString()}</div>
+                        <div class="text-xs text-[var(--text-sub)] mt-0.5">Total: $${info.total.toLocaleString()}</div>
                     </div>
                     <div class="flex items-center gap-3">
                          <button onclick="cambiarCant('${p.ID_Producto}', -1)" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-red-500"><i class="ph-bold ${qty<=1?'ph-trash':'ph-minus'}"></i></button>
@@ -1352,6 +1392,7 @@
 
             const historialFiltrado = state.historial.filter(p => {
                 const nombresProductos = p.items.map(i => i.nombre).join(" ");
+                // Buscamos en Cliente, ID, Total y Nombres de Productos
                 const textoPedido = `${p.cliente.nombre} ${p.id_interno} ${p.total} ${nombresProductos}`;
                 
                 const coincideTexto = coincidenciaFlexible(textoPedido, filtroTexto);
@@ -1390,7 +1431,6 @@
                 
                 const iconoEstado = esPendiente ? '<i class="ph-bold ph-clock"></i>' : '<i class="ph-bold ph-check-circle"></i>';
 
-                // NUEVO: Mostrar nota en historial si existe
                 const notasHtml = p.notas ? `
                     <div class="mt-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 p-2 rounded-lg border border-yellow-100 dark:border-yellow-800 flex gap-1 items-start">
                         <i class="ph-fill ph-note-pencil mt-0.5 shrink-0"></i>
@@ -1425,6 +1465,57 @@
                 `;
                 contenedor.appendChild(el);
             });
+        }
+        
+        // --- 5.1 FUNCIONES FALTANTES AÑADIDAS ---
+
+        function repetirPedido(idPedido) {
+            const pedido = state.historial.find(p => p.id_interno === idPedido);
+            if (!pedido) return;
+
+            if (!confirm(`¿Cargar el pedido de ${pedido.cliente.nombre} al carrito actual? Se reemplazarán los items actuales.`)) return;
+
+            // 1. Limpiar carrito actual
+            state.carrito = {};
+
+            // 2. Reconstruir carrito desde items del historial
+            pedido.items.forEach(item => {
+                state.carrito[item.id] = item.cantidad_sistema;
+            });
+
+            // 3. Restaurar Cliente Seleccionado (Mapeo Inverso)
+            const clienteHistorial = pedido.cliente;
+            const clienteRestaurado = {
+                ID_Cliente: clienteHistorial.id,
+                Nombre_Negocio: clienteHistorial.nombre,
+                Telefono: clienteHistorial.telefono,
+                Direccion: clienteHistorial.direccion,
+                Dueño: clienteHistorial.dueno,
+                Latitud: clienteHistorial.latitud,
+                Longitud: clienteHistorial.longitud,
+                EsLocal: clienteHistorial.esNuevo
+            };
+            seleccionarCliente(clienteRestaurado);
+
+            // 4. Actualizar toda la interfaz
+            const busqueda = document.getElementById('searchInput').value;
+            renderizarProductos(busqueda);
+            actualizarCarritoUI();
+            
+            // 5. UX: Cerrar historial y mostrar carrito
+            toggleHistory();
+            setTimeout(() => {
+                toggleCartModal();
+                alert("🛒 Carrito restaurado con éxito.");
+            }, 300);
+        }
+
+        function abrirWhatsappHistorial(idPedido) {
+            const pedido = state.historial.find(p => p.id_interno === idPedido);
+            if (!pedido) return;
+            
+            // Reutilizamos la lógica existente de WhatsApp
+            abrirWhatsapp(pedido, pedido.cliente.telefono);
         }
 
         // --- 6. OFFLINE & SYNC ---
