@@ -445,6 +445,14 @@
             historial: [],
             modoBulto: {} 
         };
+        
+        // --- NUEVA FUNCIÓN DE SEGURIDAD NUMÉRICA ---
+        function parsearNumero(valor) {
+            if (typeof valor === 'number') return valor;
+            if (!valor) return 0;
+            // Convierte "1.500,50" -> 1500.50 y asegura que sea float
+            return parseFloat(String(valor).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+        }
 
         // --- 2. INICIO Y CARGA DE DATOS ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -763,7 +771,9 @@
         function esPesable(p) {
             const u = (p.Unidad || "").toLowerCase();
             if (u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo')) return true;
-            const peso = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 0;
+            
+            // FIX: Usamos parsearNumero
+            const peso = parsearNumero(p.Peso_Promedio);
             if (peso > 0 && peso !== 1) return true;
             return false;
         }
@@ -793,12 +803,13 @@
                 const isSelected = qty > 0;
                 
                 const esProductoPesable = esPesable(p);
-                const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
+                const pesoPromedio = parsearNumero(p.Peso_Promedio) || 1; // FIX: parse
                 const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
                 const tieneBulto = unidadesPorBulto > 1;
                 const enModoBulto = state.modoBulto[p.ID_Producto] || false;
 
-                const precioMostrar = p.Precio_Unitario;
+                // FIX: Parsear precio aquí para mostrar
+                const precioMostrar = parsearNumero(p.Precio_Unitario);
 
                 let etiquetaUnidad = "Unitario"; 
                 let etiquetaDetalle = "";
@@ -883,8 +894,10 @@
         }
 
         function calcularTotalItem(p, qty) {
+            // FIX: Parsear precio con la funcion segura
+            const precio = parsearNumero(p.Precio_Unitario);
             const esProductoPesable = esPesable(p);
-            const pesoPromedio = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 1;
+            const pesoPromedio = parsearNumero(p.Peso_Promedio) || 1;
             const unidadesPorBulto = p.Unidades_Bulto ? parseInt(p.Unidades_Bulto) : 1;
             const tieneBulto = unidadesPorBulto > 1;
             const enModoBulto = state.modoBulto[p.ID_Producto] || false;
@@ -900,7 +913,8 @@
                 factorPrecio = (enModoBulto ? unidadesPorBulto : 1);
             }
             
-            const total = p.Precio_Unitario * factorPrecio * qty;
+            // FIX: Usar variable 'precio' limpia
+            const total = precio * factorPrecio * qty;
             
             let desc = "";
             if (enModoBulto) {
@@ -1350,3 +1364,4 @@
     </script>
 </body>
 </html>
+
