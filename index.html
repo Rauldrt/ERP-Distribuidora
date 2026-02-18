@@ -169,7 +169,7 @@
                         </div>
                         
                         <input type="text" id="client-search-input" 
-                            class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-20 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
+                            class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-24 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
                             placeholder="Buscar Cliente..." 
                             autocomplete="off"
                             oninput="filtrarClientes(this.value)"
@@ -182,6 +182,10 @@
 
                         <!-- Botones Dentro del Input -->
                         <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                            <!-- NUEVO: Ver Detalles Cliente (solo visible al seleccionar) -->
+                            <button id="info-client-btn" class="hidden text-blue-500 p-1 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-full transition-colors" title="Ver Detalles" onclick="verDetallesDesdeInput()">
+                                <i class="ph-bold ph-info text-lg"></i>
+                            </button>
                             <!-- Limpiar Cliente -->
                             <button id="clear-client-btn" class="text-[var(--text-sub)] hidden p-1 hover:text-red-500 transition-colors" onclick="resetCliente()">
                                 <i class="ph-fill ph-x-circle text-lg"></i>
@@ -378,7 +382,7 @@
         </div>
     </div>
 
-    <!-- 7. MODAL NUEVO CLIENTE (NUEVO) -->
+    <!-- 7. MODAL NUEVO CLIENTE -->
     <div id="newClientModal" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleNewClientModal()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
@@ -429,6 +433,32 @@
         </div>
     </div>
 
+    <!-- 8. MODAL DETALLES CLIENTE (NUEVO) -->
+    <div id="clientDetailsModal" class="fixed inset-0 z-[80] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleClientDetails()"></div>
+        <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+             <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-[var(--text-main)]">Detalles Cliente</h2>
+                <button onclick="toggleClientDetails()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+            
+            <div id="cd-content" class="space-y-3 mb-6 text-sm text-[var(--text-main)]">
+                <!-- Contenido dinámico inyectado JS -->
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                <button id="btn-share-loc" onclick="compartirUbicacionActual()" class="w-full py-3 bg-blue-100 text-blue-700 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-200 transition">
+                    <i class="ph-bold ph-map-pin"></i> Compartir Ubicación
+                </button>
+                <button id="btn-share-full" onclick="compartirDatosActuales()" class="w-full py-3 bg-green-100 text-green-700 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-200 transition">
+                    <i class="ph-bold ph-whatsapp-logo"></i> Compartir Ficha Completa
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- 1. CONFIGURACIÓN ---
         // ⚠️ PEGA TU URL DE APPS SCRIPT AQUÍ (La que termina en /exec)
@@ -442,6 +472,7 @@
             carrito: {}, 
             config: { darkMode: false, nombreVendedor: "" }, // AÑADIDO: nombreVendedor
             clienteSeleccionado: null,
+            clienteVisualizado: null, // Para el modal de detalles
             historial: [],
             modoBulto: {} 
         };
@@ -731,6 +762,10 @@
         function filtrarClientes(filtro, mostrarTodos = false) {
             const dropdown = document.getElementById('client-dropdown');
             const clearBtn = document.getElementById('clear-client-btn');
+            const infoBtn = document.getElementById('info-client-btn'); // Botón info
+
+            // Ocultar info btn mientras buscamos
+            infoBtn.classList.add('hidden');
 
             if (filtro && filtro.length > 0) {
                 clearBtn.classList.remove('hidden');
@@ -755,18 +790,22 @@
             } else {
                 filtrados.slice(0, 50).forEach(c => { 
                     const li = document.createElement('li');
-                    li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex flex-col";
+                    li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex items-center justify-between";
                     
                     // Distintivo para clientes locales
                     const badgeLocal = c.EsLocal ? `<span class="inline-block bg-blue-100 text-blue-800 text-[10px] px-1 rounded ml-2 font-bold">NUEVO</span>` : '';
 
+                    // NUEVO: Estructura flexible con botón de info
+                    // Evitamos que el clic en info seleccione al cliente usando stopPropagation en el futuro, pero aqui dividimos los divs
                     li.innerHTML = `
-                        <div class="flex items-center justify-between">
-                            <span class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio} ${badgeLocal}</span>
+                        <div class="flex-1" onclick='seleccionarCliente(${JSON.stringify(c)})'>
+                            <div class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio} ${badgeLocal}</div>
+                            <span class="text-xs text-[var(--text-sub)]">${c.Dueño} | ID: ${c.ID_Cliente}</span>
                         </div>
-                        <span class="text-xs text-[var(--text-sub)]">${c.Dueño} | ID: ${c.ID_Cliente}</span>
+                        <button onclick='verDetallesCliente(${JSON.stringify(c)})' class="p-2 text-[var(--primary)] hover:bg-blue-50 dark:hover:bg-blue-900 rounded-full ml-2 transition-colors">
+                            <i class="ph-bold ph-info text-xl"></i>
+                        </button>
                     `;
-                    li.onclick = () => seleccionarCliente(c);
                     dropdown.appendChild(li);
                 });
             }
@@ -775,6 +814,7 @@
         }
 
         function seleccionarCliente(cliente) {
+            state.clienteSeleccionado = cliente; // Guardamos ref
             document.getElementById('client-search-input').value = `${cliente.Nombre_Negocio} (${cliente.Dueño})`;
             document.getElementById('selected-client-id').value = cliente.ID_Cliente;
             document.getElementById('selected-client-phone').value = cliente.Telefono || "";
@@ -782,16 +822,19 @@
             
             document.getElementById('client-dropdown').classList.add('hidden');
             document.getElementById('clear-client-btn').classList.remove('hidden');
+            document.getElementById('info-client-btn').classList.remove('hidden'); // MOSTRAR BTN INFO
             document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
         }
 
         function resetCliente() {
+            state.clienteSeleccionado = null;
             document.getElementById('client-search-input').value = "";
             document.getElementById('selected-client-id').value = "";
             document.getElementById('selected-client-phone').value = "";
             document.getElementById('selected-client-name').value = "";
             
             document.getElementById('clear-client-btn').classList.add('hidden');
+            document.getElementById('info-client-btn').classList.add('hidden'); // OCULTAR BTN INFO
             document.getElementById('client-search-input').classList.remove('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
             document.getElementById('client-dropdown').classList.add('hidden');
             document.getElementById('client-search-input').focus();
@@ -804,6 +847,113 @@
             if (!container.contains(e.target) && !inModal) {
                 document.getElementById('client-dropdown').classList.add('hidden');
             }
+        }
+
+        // --- NUEVAS FUNCIONES DE DETALLES Y COMPARTIR ---
+        
+        function verDetallesDesdeInput() {
+            if(state.clienteSeleccionado) {
+                verDetallesCliente(state.clienteSeleccionado);
+            }
+        }
+
+        function verDetallesCliente(cliente) {
+            state.clienteVisualizado = cliente;
+            const content = document.getElementById('cd-content');
+            
+            // Construir HTML de detalles
+            let html = `
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <i class="ph-bold ph-storefront text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-lg">${cliente.Nombre_Negocio}</p>
+                        <p class="text-[var(--text-sub)]">Dueño: ${cliente.Dueño || 'No registrado'}</p>
+                    </div>
+                </div>
+                
+                <div class="bg-[var(--surface)] p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-2 mt-2">
+                    <div class="flex gap-2">
+                        <i class="ph-bold ph-phone text-[var(--text-sub)] mt-0.5"></i>
+                        <span>${cliente.Telefono || 'Sin teléfono'}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <i class="ph-bold ph-map-pin text-[var(--text-sub)] mt-0.5"></i>
+                        <span>${cliente.Direccion || 'Sin dirección'}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <i class="ph-bold ph-hash text-[var(--text-sub)] mt-0.5"></i>
+                        <span class="text-xs font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">${cliente.ID_Cliente}</span>
+                    </div>
+                </div>
+            `;
+
+            // Estado de GPS
+            if (cliente.Latitud && cliente.Longitud) {
+                html += `
+                    <div class="flex items-center gap-2 text-green-600 text-xs font-bold bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
+                        <i class="ph-bold ph-check-circle"></i> Coordenadas GPS Registradas
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="flex items-center gap-2 text-red-500 text-xs font-bold bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
+                        <i class="ph-bold ph-warning"></i> Sin Coordenadas GPS
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+            
+            // Habilitar/Deshabilitar botón mapa
+            const btnLoc = document.getElementById('btn-share-loc');
+            if(!cliente.Latitud || !cliente.Longitud) {
+                btnLoc.classList.add('opacity-50', 'cursor-not-allowed');
+                btnLoc.onclick = null; 
+            } else {
+                btnLoc.classList.remove('opacity-50', 'cursor-not-allowed');
+                btnLoc.onclick = compartirUbicacionActual;
+            }
+
+            toggleClientDetails();
+        }
+
+        function toggleClientDetails() {
+            document.getElementById('clientDetailsModal').classList.toggle('hidden');
+        }
+
+        function compartirUbicacionActual() {
+            const c = state.clienteVisualizado;
+            if(!c || !c.Latitud) return;
+            
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${c.Latitud},${c.Longitud}`;
+            const msg = `📍 *Ubicación Cliente*\n🏢 ${c.Nombre_Negocio}\n🗺️ Ver Mapa: ${mapsUrl}`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function compartirDatosActuales() {
+            const c = state.clienteVisualizado;
+            if(!c) return;
+            
+            let msg = `📋 *FICHA DE CLIENTE*\n\n`;
+            msg += `🏢 *Negocio:* ${c.Nombre_Negocio}\n`;
+            msg += `👤 *Dueño:* ${c.Dueño || 'N/A'}\n`;
+            msg += `📞 *Tel:* ${c.Telefono || 'N/A'}\n`;
+            msg += `📍 *Dirección:* ${c.Direccion || 'N/A'}\n`;
+            msg += `🆔 *ID Sistema:* ${c.ID_Cliente}\n`;
+            
+            if(c.Latitud && c.Longitud) {
+                msg += `\n🌐 *GPS:* ${c.Latitud}, ${c.Longitud}\n`;
+                msg += `🗺️ *Mapa:* https://www.google.com/maps/search/?api=1&query=${c.Latitud},${c.Longitud}\n`;
+            } else {
+                msg += `\n⚠️ *GPS:* No registrado\n`;
+            }
+
+            msg += `\n_Generado por App Preventa_`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         // --- RESTO DE LÓGICA (PRODUCTOS, CARRITO, ENVIO) ---
@@ -1045,7 +1195,7 @@
             const clienteNombre = document.getElementById('selected-client-name').value;
             const clienteTel = document.getElementById('selected-client-phone').value;
             const notas = document.getElementById('order-notes').value.trim(); 
-            const vendedor = state.config.nombreVendedor || "Sin Identificar"; // NUEVO
+            const vendedor = state.config.nombreVendedor || "Sin Identificar"; 
             
             if (!clienteId) {
                 alert("⚠️ Por favor BUSCA y SELECCIONA un cliente arriba.");
@@ -1083,6 +1233,9 @@
                 }
             });
 
+            // RECUPERAR DATOS COMPLETOS DEL CLIENTE PARA EL ENVÍO
+            const clienteFull = state.clientes.find(c => c.ID_Cliente === clienteId);
+
             const pedidoIdLocal = Date.now();
 
             const pedidoFinal = {
@@ -1090,9 +1243,15 @@
                 cliente: {
                     id: clienteId,
                     nombre: clienteNombre,
-                    telefono: clienteTel
+                    telefono: clienteTel,
+                    // Enviamos datos adicionales para que el backend pueda registrarlo automáticamente
+                    direccion: clienteFull ? clienteFull.Direccion : "",
+                    dueno: clienteFull ? clienteFull.Dueño : "",
+                    latitud: clienteFull ? clienteFull.Latitud : "",
+                    longitud: clienteFull ? clienteFull.Longitud : "",
+                    esNuevo: clienteFull ? (clienteFull.EsLocal || false) : false
                 },
-                vendedor: vendedor, // NUEVO: Enviar Vendedor
+                vendedor: vendedor,
                 total: totalVenta,
                 notas: notas,
                 items: itemsArray,
@@ -1264,7 +1423,7 @@
                         </button>
                     </div>
                 `;
-                container.appendChild(el);
+                contenedor.appendChild(el);
             });
         }
 
@@ -1411,4 +1570,3 @@
     </script>
 </body>
 </html>
-
