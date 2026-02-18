@@ -870,17 +870,19 @@
                 const isSelected = qty > 0;
                 
                 const configVenta = obtenerConfigVenta(p);
-                const { esProductoPesable, pesoPromedio, unidadesPorBulto, tieneBulto, enModoBulto, precioVenta: precioMostrar } = configVenta;
+                const { esProductoPesable, pesoPromedio, unidadesPorBulto, tieneBulto, enModoBulto, precioVenta: precioMostrar, precioUnitario } = configVenta; // Agregado precioUnitario
 
                 let etiquetaUnidad = "Unitario"; 
                 let etiquetaDetalle = "";
 
                 if (esProductoPesable) {
-                    etiquetaUnidad = "x Kg"; 
+                    // MODIFICADO: Mostrar precio x Kg
+                    etiquetaUnidad = `$${precioUnitario.toLocaleString()} x Kg`; 
+
                     if (enModoBulto) {
                         etiquetaDetalle = `Bulto ~${(pesoPromedio * unidadesPorBulto).toFixed(1)}kg`;
                     } else {
-                        etiquetaDetalle = `Pieza ~${pesoPromedio}kg`;
+                        etiquetaDetalle = `Pieza ~${pesoPromedio.toFixed(1)}kg`;
                     }
                 } else {
                     etiquetaUnidad = "Unitario";
@@ -921,7 +923,7 @@
                         <div class="flex flex-col">
                             <span class="text-lg font-bold text-[var(--primary)]">$${precioMostrar.toLocaleString()}</span>
                             <div class="flex flex-col leading-none">
-                                <span class="text-[10px] text-[var(--text-sub)] font-bold">${etiquetaUnidad}</span>
+                                <span class="text-[10px] text-[var(--text-sub)] font-black uppercase tracking-tighter">${etiquetaUnidad}</span>
                                 <span class="text-[9px] text-[var(--text-sub)] italic">${etiquetaDetalle}</span>
                             </div>
                         </div>
