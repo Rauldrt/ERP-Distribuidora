@@ -1381,16 +1381,14 @@
                 if(inputDate) inputDate.value = '';
                 if(btnClear) btnClear.classList.add('hidden'); 
                 
+                // PRIMERO ABRIMOS, LUEGO RENDERIZAMOS.
+                // Si renderizar falla, al menos la ventana está abierta y vacía.
+                modal.classList.remove('hidden');
+                
                 try {
                     renderizarHistorial();
-                    modal.classList.remove('hidden');
                 } catch(e) {
-                    // SELF-HEALING: Si falla, limpiamos historial y reintentamos vacio
-                    console.warn("Historial corrupto detectado. Limpiando...", e);
-                    SafeStorage.removeItem('db_historial');
-                    state.historial = [];
-                    renderizarHistorial(); // Reintentar vacio
-                    modal.classList.remove('hidden');
+                    console.error("Error global renderizando historial:", e);
                 }
             } else {
                 modal.classList.add('hidden');
@@ -1428,94 +1426,105 @@
                  else clearHistBtn.classList.add('hidden');
             }
 
-            const historialFiltrado = state.historial.filter(p => {
-                // Validación Estricta de cada pedido
-                if(!p || !p.cliente || !Array.isArray(p.items)) return false;
+            // --- FILTRO SEGURO ---
+            // Usamos un array intermedio para no romper el filter original si hay datos malos
+            let historialFiltrado = [];
+            try {
+                historialFiltrado = state.historial.filter(p => {
+                    if(!p || !p.cliente) return false; // Descarte silencioso de basura
+                    
+                    const nombresProductos = (p.items || []).map(i => i ? (i.nombre || '') : '').join(" ");
+                    const textoPedido = `${p.cliente.nombre || 'Cliente'} ${p.id_interno} ${p.total} ${nombresProductos}`;
+                    const coincideTexto = coincidenciaFlexible(textoPedido, filtroTexto);
+                    
+                    let coincideFecha = true;
+                    if(filtroFecha) {
+                        try {
+                            const fechaPedido = new Date(p.id_interno);
+                            if(isNaN(fechaPedido.getTime())) return false;
+                            
+                            const partesFecha = filtroFecha.split('-');
+                            const anioF = parseInt(partesFecha[0]);
+                            const mesF = parseInt(partesFecha[1]) - 1; 
+                            const diaF = parseInt(partesFecha[2]);
 
-                const nombresProductos = (p.items || []).map(i => i ? (i.nombre || '') : '').join(" ");
-                // Buscamos en Cliente, ID, Total y Nombres de Productos
-                const textoPedido = `${p.cliente.nombre || 'Cliente'} ${p.id_interno} ${p.total} ${nombresProductos}`;
-                
-                const coincideTexto = coincidenciaFlexible(textoPedido, filtroTexto);
-                
-                let coincideFecha = true;
-                if(filtroFecha) {
-                    // Try-catch para fecha invalida
-                    try {
-                        const fechaPedido = new Date(p.id_interno);
-                        if(isNaN(fechaPedido.getTime())) return false;
-                        
-                        const partesFecha = filtroFecha.split('-');
-                        const anioF = parseInt(partesFecha[0]);
-                        const mesF = parseInt(partesFecha[1]) - 1; 
-                        const diaF = parseInt(partesFecha[2]);
-
-                        coincideFecha = (
-                            fechaPedido.getFullYear() === anioF &&
-                            fechaPedido.getMonth() === mesF &&
-                            fechaPedido.getDate() === diaF
-                        );
-                    } catch(e) { return false; }
-                }
-
-                return coincideTexto && coincideFecha;
-            });
+                            coincideFecha = (
+                                fechaPedido.getFullYear() === anioF &&
+                                fechaPedido.getMonth() === mesF &&
+                                fechaPedido.getDate() === diaF
+                            );
+                        } catch(e) { return false; }
+                    }
+                    return coincideTexto && coincideFecha;
+                });
+            } catch (errFilter) {
+                console.error("Error filtrando historial", errFilter);
+                historialFiltrado = [];
+            }
 
             if (historialFiltrado.length === 0) {
                 container.innerHTML = `<div class="text-center py-10 text-[var(--text-sub)] opacity-70">No hay ventas que coincidan.</div>`;
                 return;
             }
 
+            // --- RENDERIZADO "ITEM POR ITEM" (Aislado) ---
             historialFiltrado.forEach(p => {
-                const el = document.createElement('div');
-                el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
-                
-                const esPendiente = p.estado === 'Pendiente';
-                const statusColor = esPendiente 
-                    ? 'text-yellow-700 bg-yellow-100 border border-yellow-200' 
-                    : 'text-green-700 bg-green-100 border border-green-200';
-                
-                const iconoEstado = esPendiente ? '<i class="ph-bold ph-clock"></i>' : '<i class="ph-bold ph-check-circle"></i>';
-
-                const notasHtml = p.notas ? `
-                    <div class="mt-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 p-2 rounded-lg border border-yellow-100 dark:border-yellow-800 flex gap-1 items-start">
-                        <i class="ph-fill ph-note-pencil mt-0.5 shrink-0"></i>
-                        <span class="italic">"${p.notas}"</span>
-                    </div>` : '';
-
-                // Usamos valores por defecto para evitar undefined
-                const nombreCliente = p.cliente.nombre || 'Cliente Desconocido';
-                const fecha = p.fechaLocal || 'Fecha desconocida';
-                const total = p.total ? p.total.toLocaleString() : '0';
-                const itemsCount = p.items ? p.items.length : 0;
-
-                el.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <div class="font-bold text-[var(--text-main)] text-sm">${nombreCliente}</div>
-                            <div class="text-xs text-[var(--text-sub)]">${fecha}</div>
-                        </div>
-                        <span class="text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1 ${statusColor}">
-                            ${iconoEstado} ${p.estado || 'Estado desc.'}
-                        </span>
-                    </div>
+                try {
+                    // Si un item falla, solo ese item se deja de mostrar
+                    const el = document.createElement('div');
+                    el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
                     
-                    ${notasHtml}
+                    const esPendiente = p.estado === 'Pendiente';
+                    const statusColor = esPendiente 
+                        ? 'text-yellow-700 bg-yellow-100 border border-yellow-200' 
+                        : 'text-green-700 bg-green-100 border border-green-200';
+                    
+                    const iconoEstado = esPendiente ? '<i class="ph-bold ph-clock"></i>' : '<i class="ph-bold ph-check-circle"></i>';
 
-                    <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
-                        <div class="text-xs text-[var(--text-sub)]">${itemsCount} productos</div>
-                        <div class="font-bold text-[var(--primary)]">$${total}</div>
-                    </div>
-                    <div class="mt-2 pt-2 flex gap-2">
-                         <button onclick='repetirPedido(${p.id_interno})' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
-                            <i class="ph-bold ph-arrows-clockwise"></i> Repetir
-                        </button>
-                        <button onclick='abrirWhatsappHistorial(${p.id_interno})' class="flex-1 bg-green-500 text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:bg-green-600 transition">
-                            <i class="ph-bold ph-whatsapp-logo"></i> Reenviar
-                        </button>
-                    </div>
-                `;
-                contenedor.appendChild(el);
+                    const notasHtml = p.notas ? `
+                        <div class="mt-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 p-2 rounded-lg border border-yellow-100 dark:border-yellow-800 flex gap-1 items-start">
+                            <i class="ph-fill ph-note-pencil mt-0.5 shrink-0"></i>
+                            <span class="italic">"${p.notas}"</span>
+                        </div>` : '';
+
+                    const nombreCliente = p.cliente.nombre || 'Cliente Desconocido';
+                    const fecha = p.fechaLocal || 'Fecha desconocida';
+                    const total = p.total ? p.total.toLocaleString() : '0';
+                    const itemsCount = p.items ? p.items.length : 0;
+                    
+                    // SANEAMIENTO DE ID: Aseguramos que sea un string seguro para onclick
+                    const safeId = String(p.id_interno).replace(/[^a-zA-Z0-9-]/g, '');
+
+                    el.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <div class="font-bold text-[var(--text-main)] text-sm">${nombreCliente}</div>
+                                <div class="text-xs text-[var(--text-sub)]">${fecha}</div>
+                            </div>
+                            <span class="text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1 ${statusColor}">
+                                ${iconoEstado} ${p.estado || 'Estado desc.'}
+                            </span>
+                        </div>
+                        
+                        ${notasHtml}
+
+                        <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
+                            <div class="text-xs text-[var(--text-sub)]">${itemsCount} productos</div>
+                            <div class="font-bold text-[var(--primary)]">$${total}</div>
+                        </div>
+                        <div class="mt-2 pt-2 flex gap-2">
+                            <button onclick='repetirPedido(${p.id_interno})' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
+                                <i class="ph-bold ph-arrows-clockwise"></i> Repetir
+                            </button>
+                            <button onclick='abrirWhatsappHistorial(${p.id_interno})' class="flex-1 bg-green-500 text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:bg-green-600 transition">
+                                <i class="ph-bold ph-whatsapp-logo"></i> Reenviar
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                } catch(itemErr) {
+                    console.error("Item corrupto ignorado:", itemErr);
+                }
             });
         }
         
