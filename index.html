@@ -990,38 +990,9 @@
         function esPesable(p) {
             const u = (p.Unidad || "").toLowerCase();
             if (u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo')) return true;
-            
-            // FIX: Usamos parsearNumero
-            const peso = parsearNumero(p.Peso_Promedio);
+            const peso = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 0;
             if (peso > 0 && peso !== 1) return true;
             return false;
-        }
-
-        function obtenerConfigVenta(p) {
-            const precioUnitario = Math.max(0, parsearNumero(p.Precio_Unitario));
-            const pesoPromedio = Math.max(0.001, parsearNumero(p.Peso_Promedio) || 1);
-            const unidadesPorBulto = Math.max(1, enteroSeguro(p.Unidades_Bulto, 1));
-            const esProductoPesable = esPesable(p);
-            const tieneBulto = unidadesPorBulto > 1;
-            const enModoBulto = tieneBulto && !!state.modoBulto[p.ID_Producto];
-
-            let factorPrecio = 1;
-            if (esProductoPesable) {
-                factorPrecio = enModoBulto ? (pesoPromedio * unidadesPorBulto) : pesoPromedio;
-            } else {
-                factorPrecio = enModoBulto ? unidadesPorBulto : 1;
-            }
-
-            return {
-                precioUnitario,
-                pesoPromedio,
-                unidadesPorBulto,
-                esProductoPesable,
-                tieneBulto,
-                enModoBulto,
-                factorPrecio: Math.max(0, factorPrecio),
-                precioVenta: redondearMoneda(precioUnitario * factorPrecio)
-            };
         }
 
         function toggleModoVenta(idProducto) {
@@ -1040,7 +1011,6 @@
             let url = candidata.trim();
             
             // CONVERSOR AUTOMÁTICO DE GOOGLE DRIVE: 
-            // Transforma links de visualización en links de descarga directa para img src
             if (url.includes('drive.google.com')) {
                 const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
                 if (match && match[1]) {
