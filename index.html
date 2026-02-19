@@ -1365,8 +1365,15 @@
                 document.getElementById('history-search-client').value = '';
                 document.getElementById('history-search-date').value = '';
                 document.getElementById('clear-history-btn').classList.add('hidden'); 
-                renderizarHistorial();
-                modal.classList.remove('hidden');
+                
+                // INTENTO SEGURO DE RENDERIZAR
+                try {
+                    renderizarHistorial();
+                    modal.classList.remove('hidden');
+                } catch(e) {
+                    console.error("Error al renderizar historial:", e);
+                    alert("Hubo un error al cargar el historial. Es posible que los datos guardados sean incompatibles.");
+                }
             } else {
                 modal.classList.add('hidden');
             }
@@ -1390,10 +1397,14 @@
             if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
             else clearHistBtn.classList.add('hidden');
 
+            // --- FILTRADO SEGURO ---
             const historialFiltrado = state.historial.filter(p => {
-                const nombresProductos = p.items.map(i => i.nombre).join(" ");
+                // VALIDACIÓN: Si el pedido está corrupto (sin cliente o items), lo ignoramos
+                if(!p || !p.cliente || !p.items) return false;
+
+                const nombresProductos = (p.items || []).map(i => i.nombre).join(" ");
                 // Buscamos en Cliente, ID, Total y Nombres de Productos
-                const textoPedido = `${p.cliente.nombre} ${p.id_interno} ${p.total} ${nombresProductos}`;
+                const textoPedido = `${p.cliente.nombre || 'Cliente'} ${p.id_interno} ${p.total} ${nombresProductos}`;
                 
                 const coincideTexto = coincidenciaFlexible(textoPedido, filtroTexto);
                 
@@ -1421,6 +1432,9 @@
             }
 
             historialFiltrado.forEach(p => {
+                // DOBLE VALIDACIÓN POR SEGURIDAD
+                if(!p.cliente) return; 
+
                 const el = document.createElement('div');
                 el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
                 
@@ -1437,22 +1451,28 @@
                         <span class="italic">"${p.notas}"</span>
                     </div>` : '';
 
+                // Usamos valores por defecto para evitar undefined
+                const nombreCliente = p.cliente.nombre || 'Cliente Desconocido';
+                const fecha = p.fechaLocal || 'Fecha desconocida';
+                const total = p.total ? p.total.toLocaleString() : '0';
+                const itemsCount = p.items ? p.items.length : 0;
+
                 el.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <div class="font-bold text-[var(--text-main)] text-sm">${p.cliente.nombre}</div>
-                            <div class="text-xs text-[var(--text-sub)]">${p.fechaLocal}</div>
+                            <div class="font-bold text-[var(--text-main)] text-sm">${nombreCliente}</div>
+                            <div class="text-xs text-[var(--text-sub)]">${fecha}</div>
                         </div>
                         <span class="text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1 ${statusColor}">
-                            ${iconoEstado} ${p.estado}
+                            ${iconoEstado} ${p.estado || 'Estado desc.'}
                         </span>
                     </div>
                     
                     ${notasHtml}
 
                     <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
-                        <div class="text-xs text-[var(--text-sub)]">${p.items.length} productos</div>
-                        <div class="font-bold text-[var(--primary)]">$${p.total.toLocaleString()}</div>
+                        <div class="text-xs text-[var(--text-sub)]">${itemsCount} productos</div>
+                        <div class="font-bold text-[var(--primary)]">$${total}</div>
                     </div>
                     <div class="mt-2 pt-2 flex gap-2">
                          <button onclick='repetirPedido(${p.id_interno})' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
@@ -1479,23 +1499,27 @@
             state.carrito = {};
 
             // 2. Reconstruir carrito desde items del historial
-            pedido.items.forEach(item => {
-                state.carrito[item.id] = item.cantidad_sistema;
-            });
+            if(pedido.items && Array.isArray(pedido.items)) {
+                pedido.items.forEach(item => {
+                    state.carrito[item.id] = item.cantidad_sistema;
+                });
+            }
 
             // 3. Restaurar Cliente Seleccionado (Mapeo Inverso)
             const clienteHistorial = pedido.cliente;
-            const clienteRestaurado = {
-                ID_Cliente: clienteHistorial.id,
-                Nombre_Negocio: clienteHistorial.nombre,
-                Telefono: clienteHistorial.telefono,
-                Direccion: clienteHistorial.direccion,
-                Dueño: clienteHistorial.dueno,
-                Latitud: clienteHistorial.latitud,
-                Longitud: clienteHistorial.longitud,
-                EsLocal: clienteHistorial.esNuevo
-            };
-            seleccionarCliente(clienteRestaurado);
+            if(clienteHistorial) {
+                const clienteRestaurado = {
+                    ID_Cliente: clienteHistorial.id || "UNKNOWN",
+                    Nombre_Negocio: clienteHistorial.nombre || "Desconocido",
+                    Telefono: clienteHistorial.telefono || "",
+                    Direccion: clienteHistorial.direccion || "",
+                    Dueño: clienteHistorial.dueno || "",
+                    Latitud: clienteHistorial.latitud || "",
+                    Longitud: clienteHistorial.longitud || "",
+                    EsLocal: clienteHistorial.esNuevo || false
+                };
+                seleccionarCliente(clienteRestaurado);
+            }
 
             // 4. Actualizar toda la interfaz
             const busqueda = document.getElementById('searchInput').value;
@@ -1512,7 +1536,7 @@
 
         function abrirWhatsappHistorial(idPedido) {
             const pedido = state.historial.find(p => p.id_interno === idPedido);
-            if (!pedido) return;
+            if (!pedido || !pedido.cliente) return;
             
             // Reutilizamos la lógica existente de WhatsApp
             abrirWhatsapp(pedido, pedido.cliente.telefono);
