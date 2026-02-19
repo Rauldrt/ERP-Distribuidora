@@ -499,6 +499,26 @@
             return Math.round((parsearNumero(valor) + Number.EPSILON) * 100) / 100;
         }
 
+        // --- MANEJO SEGURO DE LOCALSTORAGE ---
+        const SafeStorage = {
+            getItem: (key) => {
+                try { return localStorage.getItem(key); }
+                catch(e) { console.warn("LocalStorage inaccesible:", e); return null; }
+            },
+            setItem: (key, val) => {
+                try { localStorage.setItem(key, val); }
+                catch(e) { console.warn("Error escribiendo LocalStorage:", e); }
+            },
+            removeItem: (key) => {
+                try { localStorage.removeItem(key); }
+                catch(e) { console.warn("Error borrando LocalStorage:", e); }
+            },
+            clear: () => {
+                try { localStorage.clear(); }
+                catch(e) { console.warn("Error limpiando LocalStorage:", e); }
+            }
+        };
+
         // --- 2. INICIO Y CARGA DE DATOS ---
         document.addEventListener('DOMContentLoaded', () => {
             cargarConfigLocal();
@@ -536,21 +556,25 @@
                 // Unificar Clientes API + Locales
                 state.clientes = [...state.clientesLocales, ...clientesAPI];
 
-                localStorage.setItem('db_productos', JSON.stringify(state.productos));
-                localStorage.setItem('db_clientes', JSON.stringify(clientesAPI)); // Guardamos solo los de API para cache limpio
+                SafeStorage.setItem('db_productos', JSON.stringify(state.productos));
+                SafeStorage.setItem('db_clientes', JSON.stringify(clientesAPI)); // Guardamos solo los de API para cache limpio
 
                 renderizarUI();
 
             } catch (error) {
                 console.log("Modo Offline activado");
-                const cachedProd = localStorage.getItem('db_productos');
-                const cachedCli = localStorage.getItem('db_clientes');
+                const cachedProd = SafeStorage.getItem('db_productos');
+                const cachedCli = SafeStorage.getItem('db_clientes');
 
                 if (cachedProd && cachedCli) {
-                    state.productos = JSON.parse(cachedProd);
-                    const clientesAPI = JSON.parse(cachedCli);
-                    state.clientes = [...state.clientesLocales, ...clientesAPI];
-                    renderizarUI();
+                    try {
+                        state.productos = JSON.parse(cachedProd);
+                        const clientesAPI = JSON.parse(cachedCli);
+                        state.clientes = [...state.clientesLocales, ...clientesAPI];
+                        renderizarUI();
+                    } catch(e) {
+                         document.getElementById('loadingState').innerHTML = `<p class="text-red-500">Datos guardados corruptos. Reinicia la app.</p>`;
+                    }
                 } else {
                     document.getElementById('loadingState').innerHTML = `<p class="text-red-500">Sin conexión y sin datos guardados.</p>`;
                 }
@@ -564,8 +588,12 @@
 
         // --- LÓGICA DE CLIENTES LOCALES ---
         function cargarClientesLocales() {
-            const stored = localStorage.getItem('db_clientes_locales');
-            state.clientesLocales = stored ? JSON.parse(stored) : [];
+            try {
+                const stored = SafeStorage.getItem('db_clientes_locales');
+                state.clientesLocales = stored ? JSON.parse(stored) : [];
+            } catch(e) {
+                state.clientesLocales = [];
+            }
         }
 
         function toggleNewClientModal() {
@@ -650,7 +678,7 @@
 
             // Guardar en estado local
             state.clientesLocales.unshift(nuevoCliente);
-            localStorage.setItem('db_clientes_locales', JSON.stringify(state.clientesLocales));
+            SafeStorage.setItem('db_clientes_locales', JSON.stringify(state.clientesLocales));
             
             // Actualizar lista global
             state.clientes.unshift(nuevoCliente);
@@ -1321,39 +1349,48 @@
         // --- 5. LÓGICA DE HISTORIAL Y REPETIR PEDIDO ---
         function cargarHistorialLocal() {
             try {
-                const stored = localStorage.getItem('db_historial');
+                const stored = SafeStorage.getItem('db_historial');
                 const parsed = stored ? JSON.parse(stored) : [];
                 // Aseguramos que sea array, sino array vacío
                 state.historial = Array.isArray(parsed) ? parsed : [];
             } catch(e) {
                 console.error("Error cargando historial, reseteando...", e);
                 state.historial = [];
-                localStorage.removeItem('db_historial');
+                SafeStorage.removeItem('db_historial');
             }
         }
 
         function guardarEnHistorial(pedido, estado = 'Enviado') {
-            const historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
+            const historial = JSON.parse(SafeStorage.getItem('db_historial') || "[]");
             pedido.estado = estado;
             historial.unshift(pedido);
             if(historial.length > 50) historial.pop();
-            localStorage.setItem('db_historial', JSON.stringify(historial));
+            SafeStorage.setItem('db_historial', JSON.stringify(historial));
             state.historial = historial;
         }
 
         function toggleHistory() {
             const modal = document.getElementById('historyModal');
             if (modal.classList.contains('hidden')) {
-                document.getElementById('history-search-client').value = '';
-                document.getElementById('history-search-date').value = '';
-                document.getElementById('clear-history-btn').classList.add('hidden'); 
+                // Validación DOM: Asegurar que los inputs existen antes de usarlos
+                const inputClient = document.getElementById('history-search-client');
+                const inputDate = document.getElementById('history-search-date');
+                const btnClear = document.getElementById('clear-history-btn');
+                
+                if(inputClient) inputClient.value = '';
+                if(inputDate) inputDate.value = '';
+                if(btnClear) btnClear.classList.add('hidden'); 
                 
                 try {
                     renderizarHistorial();
                     modal.classList.remove('hidden');
                 } catch(e) {
-                    console.error("Error al renderizar historial:", e);
-                    alert("Error visualizando historial: " + e.message);
+                    // SELF-HEALING: Si falla, limpiamos historial y reintentamos vacio
+                    console.warn("Historial corrupto detectado. Limpiando...", e);
+                    SafeStorage.removeItem('db_historial');
+                    state.historial = [];
+                    renderizarHistorial(); // Reintentar vacio
+                    modal.classList.remove('hidden');
                 }
             } else {
                 modal.classList.add('hidden');
@@ -1378,12 +1415,18 @@
                 state.historial = [];
             }
             
-            const filtroTexto = document.getElementById('history-search-client').value;
-            const filtroFecha = document.getElementById('history-search-date').value; 
+            // Safe access to inputs
+            const inputClient = document.getElementById('history-search-client');
+            const inputDate = document.getElementById('history-search-date');
+            
+            const filtroTexto = inputClient ? inputClient.value : "";
+            const filtroFecha = inputDate ? inputDate.value : "";
             
             const clearHistBtn = document.getElementById('clear-history-btn');
-            if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
-            else clearHistBtn.classList.add('hidden');
+            if(clearHistBtn) {
+                 if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
+                 else clearHistBtn.classList.add('hidden');
+            }
 
             const historialFiltrado = state.historial.filter(p => {
                 // Validación Estricta de cada pedido
@@ -1397,17 +1440,22 @@
                 
                 let coincideFecha = true;
                 if(filtroFecha) {
-                    const fechaPedido = new Date(p.id_interno);
-                    const partesFecha = filtroFecha.split('-');
-                    const anioF = parseInt(partesFecha[0]);
-                    const mesF = parseInt(partesFecha[1]) - 1; 
-                    const diaF = parseInt(partesFecha[2]);
+                    // Try-catch para fecha invalida
+                    try {
+                        const fechaPedido = new Date(p.id_interno);
+                        if(isNaN(fechaPedido.getTime())) return false;
+                        
+                        const partesFecha = filtroFecha.split('-');
+                        const anioF = parseInt(partesFecha[0]);
+                        const mesF = parseInt(partesFecha[1]) - 1; 
+                        const diaF = parseInt(partesFecha[2]);
 
-                    coincideFecha = (
-                        fechaPedido.getFullYear() === anioF &&
-                        fechaPedido.getMonth() === mesF &&
-                        fechaPedido.getDate() === diaF
-                    );
+                        coincideFecha = (
+                            fechaPedido.getFullYear() === anioF &&
+                            fechaPedido.getMonth() === mesF &&
+                            fechaPedido.getDate() === diaF
+                        );
+                    } catch(e) { return false; }
                 }
 
                 return coincideTexto && coincideFecha;
@@ -1538,9 +1586,9 @@
         }
 
         function guardarPedidoOffline(pedido) {
-            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            const pendientes = JSON.parse(SafeStorage.getItem('cola_pedidos') || "[]");
             pendientes.push(pedido);
-            localStorage.setItem('cola_pedidos', JSON.stringify(pendientes));
+            SafeStorage.setItem('cola_pedidos', JSON.stringify(pendientes));
             
             guardarEnHistorial(pedido, 'Pendiente');
 
@@ -1549,7 +1597,7 @@
         }
 
         function verificarPendientes() {
-            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            const pendientes = JSON.parse(SafeStorage.getItem('cola_pedidos') || "[]");
             const banner = document.getElementById('sync-banner');
             if (pendientes.length > 0) {
                 banner.classList.remove('hidden');
@@ -1560,7 +1608,7 @@
         }
 
         async function sincronizarPendientes() {
-            const pendientes = JSON.parse(localStorage.getItem('cola_pedidos') || "[]");
+            const pendientes = JSON.parse(SafeStorage.getItem('cola_pedidos') || "[]");
             if (pendientes.length === 0 || !navigator.onLine) return;
 
             if(!confirm(`¿Enviar los ${pendientes.length} pedidos pendientes ahora?`)) return;
@@ -1571,7 +1619,7 @@
             let enviados = 0;
             const errores = [];
 
-            let historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
+            let historial = JSON.parse(SafeStorage.getItem('db_historial') || "[]");
 
             for (const pedido of pendientes) {
                 try {
@@ -1591,10 +1639,10 @@
                 }
             }
             
-            localStorage.setItem('db_historial', JSON.stringify(historial));
+            SafeStorage.setItem('db_historial', JSON.stringify(historial));
             state.historial = historial;
 
-            localStorage.setItem('cola_pedidos', JSON.stringify(errores));
+            SafeStorage.setItem('cola_pedidos', JSON.stringify(errores));
             alert(`Sincronización: ${enviados} enviados, ${errores.length} fallidos.`);
             location.reload();
         }
@@ -1612,7 +1660,7 @@
 
         function toggleDarkMode(isDark) {
             state.config.darkMode = isDark;
-            localStorage.setItem('app_config', JSON.stringify(state.config));
+            SafeStorage.setItem('app_config', JSON.stringify(state.config));
             if(isDark) document.body.classList.add('dark-mode');
             else document.body.classList.remove('dark-mode');
         }
@@ -1620,7 +1668,7 @@
         // NUEVO: Guardar nombre vendedor
         function guardarNombreVendedor(nombre) {
             state.config.nombreVendedor = nombre;
-            localStorage.setItem('app_config', JSON.stringify(state.config));
+            SafeStorage.setItem('app_config', JSON.stringify(state.config));
             
             // Actualizar UI en tiempo real
             const display = document.getElementById('header-vendedor-name');
@@ -1628,7 +1676,7 @@
         }
 
         function cargarConfigLocal() {
-            const cfg = JSON.parse(localStorage.getItem('app_config') || '{}');
+            const cfg = JSON.parse(SafeStorage.getItem('app_config') || '{}');
             state.config = { ...state.config, ...cfg };
             if (state.config.darkMode) {
                 document.getElementById('darkModeToggle').checked = true;
@@ -1643,8 +1691,8 @@
         }
         
         function recargarDatos() {
-            localStorage.removeItem('db_productos');
-            localStorage.removeItem('db_clientes');
+            SafeStorage.removeItem('db_productos');
+            SafeStorage.removeItem('db_clientes');
             location.reload();
         }
 
