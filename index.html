@@ -169,7 +169,7 @@
                         </div>
                         
                         <input type="text" id="client-search-input" 
-                            class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-24 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
+                            class="w-full bg-[var(--surface-container)] text-[var(--text-main)] p-2.5 pl-10 pr-20 rounded-xl border border-gray-200 dark:border-gray-700 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-gray-400 shadow-sm transition-all" 
                             placeholder="Buscar Cliente..." 
                             autocomplete="off"
                             oninput="filtrarClientes(this.value)"
@@ -322,7 +322,7 @@
 
             <div class="p-3 border-b border-gray-100 dark:border-gray-800 flex gap-2 bg-[var(--surface-container)]">
                 <div class="flex-1 relative">
-                    <input type="text" id="history-search-client" placeholder="Buscar cliente, ID o producto..." 
+                    <input type="text" id="history-search-client" placeholder="Buscar por voz..." 
                            class="w-full bg-[var(--surface)] text-sm p-2 pl-3 pr-16 rounded-lg border border-gray-200 dark:border-gray-700 outline-none focus:border-[var(--primary)] text-[var(--text-main)]"
                            oninput="renderizarHistorial()">
                     <div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
@@ -376,13 +376,13 @@
             <button onclick="recargarDatos()" class="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-medium mb-2">
                 <i class="ph-bold ph-arrows-clockwise"></i> Recargar Datos
             </button>
-            <button onclick="localStorage.clear()" class="w-full py-3 text-red-500 border border-red-200 rounded-xl font-medium text-sm" onmousedown="setTimeout(()=>location.reload(),200)">
+            <button onclick="localStorage.clear(); location.reload()" class="w-full py-3 text-red-500 border border-red-200 rounded-xl font-medium text-sm">
                 Restablecer App
             </button>
         </div>
     </div>
 
-    <!-- 7. MODAL NUEVO CLIENTE -->
+    <!-- 7. MODAL NUEVO CLIENTE (NUEVO) -->
     <div id="newClientModal" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleNewClientModal()"></div>
         <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
@@ -481,7 +481,6 @@
             if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
             if (valor === null || valor === undefined || valor === '') return 0;
 
-            // Soporta formatos: 1.500,50 | 1,500.50 | $ 1.500 | (1.200,00)
             let numero = String(valor).trim();
             const esNegativoPorParentesis = /^\(.*\)$/.test(numero);
             numero = numero.replace(/[()]/g, '').replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
@@ -491,7 +490,6 @@
             const lastDot = numero.lastIndexOf('.');
 
             if (lastComma !== -1 && lastDot !== -1) {
-                // El último separador suele ser decimal.
                 if (lastComma > lastDot) {
                     numero = numero.replace(/\./g, '').replace(/,/g, '.');
                 } else {
@@ -567,7 +565,7 @@
             actualizarEstadoConexion();
             verificarPendientes();
             cargarHistorialLocal(); 
-            cargarClientesLocales(); // Cargar clientes creados offline/localmente
+            cargarClientesLocales(); 
 
             try {
                 const [resProd, resCli] = await Promise.all([
@@ -578,11 +576,10 @@
                 state.productos = await resProd.json();
                 const clientesAPI = await resCli.json();
                 
-                // Unificar Clientes API + Locales
                 state.clientes = [...state.clientesLocales, ...clientesAPI];
 
                 SafeStorage.setItem('db_productos', JSON.stringify(state.productos));
-                SafeStorage.setItem('db_clientes', JSON.stringify(clientesAPI)); // Guardamos solo los de API para cache limpio
+                SafeStorage.setItem('db_clientes', JSON.stringify(clientesAPI)); 
 
                 renderizarUI();
 
@@ -626,7 +623,6 @@
             modal.classList.toggle('hidden');
             if(!modal.classList.contains('hidden')){
                 document.getElementById('nc-negocio').focus();
-                // Reset de estado GPS al abrir
                 const btn = document.getElementById('btn-geo');
                 const status = document.getElementById('geo-status');
                 document.getElementById('nc-lat').value = "";
@@ -689,29 +685,23 @@
 
             if(!negocio) return;
 
-            // Crear objeto cliente
             const nuevoCliente = {
-                ID_Cliente: `NUEVO-${Date.now()}`, // ID único temporal
+                ID_Cliente: `NUEVO-${Date.now()}`,
                 Nombre_Negocio: negocio,
                 Dueño: dueno || "Sin Dueño",
                 Telefono: telefono,
                 Direccion: direccion,
                 Latitud: lat,
                 Longitud: lon,
-                EsLocal: true // Flag para identificarlo
+                EsLocal: true
             };
 
-            // Guardar en estado local
             state.clientesLocales.unshift(nuevoCliente);
             SafeStorage.setItem('db_clientes_locales', JSON.stringify(state.clientesLocales));
             
-            // Actualizar lista global
             state.clientes.unshift(nuevoCliente);
-
-            // Seleccionar automáticamente
             seleccionarCliente(nuevoCliente);
             
-            // Reset y cerrar modal
             document.getElementById('formNewClient').reset();
             toggleNewClientModal();
             
@@ -719,17 +709,14 @@
         }
 
         // --- 2.1 FUNCIONES AUXILIARES DE BÚSQUEDA INTELIGENTE ---
-        
         function normalizarTexto(str) {
             return (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         }
 
         function coincidenciaFlexible(textoDondeBuscar, terminoBusqueda) {
             if (!terminoBusqueda) return true;
-            
             const palabrasBusqueda = normalizarTexto(terminoBusqueda).split(" ").filter(p => p.length > 0);
             const textoNormalizado = normalizarTexto(textoDondeBuscar);
-
             return palabrasBusqueda.every(palabra => textoNormalizado.includes(palabra));
         }
 
@@ -752,11 +739,11 @@
             const originalClass = icon.className;
 
             recognition.onstart = () => {
-                icon.className = "ph-fill ph-circle text-red-500 animate-pulse text-xl"; // Indicador visual
+                icon.className = "ph-fill ph-circle text-red-500 animate-pulse text-xl"; 
             };
 
             recognition.onend = () => {
-                icon.className = originalClass; // Restaurar icono
+                icon.className = originalClass;
             };
 
             recognition.onresult = (event) => {
@@ -765,7 +752,6 @@
                 
                 input.value = speechResult;
                 
-                // Ejecutamos la búsqueda
                 if (typeof callbackFunction === 'function') {
                     callbackFunction(speechResult);
                 }
@@ -789,9 +775,8 @@
         function filtrarClientes(filtro, mostrarTodos = false) {
             const dropdown = document.getElementById('client-dropdown');
             const clearBtn = document.getElementById('clear-client-btn');
-            const infoBtn = document.getElementById('info-client-btn'); // Botón info
+            const infoBtn = document.getElementById('info-client-btn'); 
 
-            // Ocultar info btn mientras buscamos
             infoBtn.classList.add('hidden');
 
             if (filtro && filtro.length > 0) {
@@ -819,11 +804,8 @@
                     const li = document.createElement('li');
                     li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition flex items-center justify-between";
                     
-                    // Distintivo para clientes locales
                     const badgeLocal = c.EsLocal ? `<span class="inline-block bg-blue-100 text-blue-800 text-[10px] px-1 rounded ml-2 font-bold">NUEVO</span>` : '';
 
-                    // NUEVO: Estructura flexible con botón de info
-                    // Evitamos que el clic en info seleccione al cliente usando stopPropagation en el futuro, pero aqui dividimos los divs
                     li.innerHTML = `
                         <div class="flex-1" onclick='seleccionarCliente(${JSON.stringify(c)})'>
                             <div class="font-medium text-[var(--text-main)]">${c.Nombre_Negocio} ${badgeLocal}</div>
@@ -841,7 +823,7 @@
         }
 
         function seleccionarCliente(cliente) {
-            state.clienteSeleccionado = cliente; // Guardamos ref
+            state.clienteSeleccionado = cliente; 
             document.getElementById('client-search-input').value = `${cliente.Nombre_Negocio} (${cliente.Dueño})`;
             document.getElementById('selected-client-id').value = cliente.ID_Cliente;
             document.getElementById('selected-client-phone').value = cliente.Telefono || "";
@@ -849,7 +831,7 @@
             
             document.getElementById('client-dropdown').classList.add('hidden');
             document.getElementById('clear-client-btn').classList.remove('hidden');
-            document.getElementById('info-client-btn').classList.remove('hidden'); // MOSTRAR BTN INFO
+            document.getElementById('info-client-btn').classList.remove('hidden');
             document.getElementById('client-search-input').classList.add('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
         }
 
@@ -861,7 +843,7 @@
             document.getElementById('selected-client-name').value = "";
             
             document.getElementById('clear-client-btn').classList.add('hidden');
-            document.getElementById('info-client-btn').classList.add('hidden'); // OCULTAR BTN INFO
+            document.getElementById('info-client-btn').classList.add('hidden'); 
             document.getElementById('client-search-input').classList.remove('border-[var(--primary)]', 'bg-blue-50', 'dark:bg-blue-900/20');
             document.getElementById('client-dropdown').classList.add('hidden');
             document.getElementById('client-search-input').focus();
@@ -869,7 +851,6 @@
 
         function cerrarDropdowns(e) {
             const container = document.getElementById('client-search-input').parentElement.parentElement;
-            // Verificar si el click fue dentro del contenedor del buscador o en el modal
             const inModal = document.getElementById('newClientModal').contains(e.target);
             if (!container.contains(e.target) && !inModal) {
                 document.getElementById('client-dropdown').classList.add('hidden');
@@ -877,7 +858,6 @@
         }
 
         // --- NUEVAS FUNCIONES DE DETALLES Y COMPARTIR ---
-        
         function verDetallesDesdeInput() {
             if(state.clienteSeleccionado) {
                 verDetallesCliente(state.clienteSeleccionado);
@@ -889,7 +869,6 @@
             const content = document.getElementById('cd-content');
             if(!content) return;
             
-            // Construir HTML de detalles
             let html = `
                 <div class="flex items-start gap-3">
                     <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
@@ -917,7 +896,6 @@
                 </div>
             `;
 
-            // Estado de GPS
             if (cliente.Latitud && cliente.Longitud) {
                 html += `
                     <div class="flex items-center gap-2 text-green-600 text-xs font-bold bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
@@ -934,7 +912,6 @@
 
             content.innerHTML = html;
             
-            // Habilitar/Deshabilitar botón mapa
             const btnLoc = document.getElementById('btn-share-loc');
             if(!btnLoc) return;
             if(!cliente.Latitud || !cliente.Longitud) {
@@ -990,9 +967,37 @@
         function esPesable(p) {
             const u = (p.Unidad || "").toLowerCase();
             if (u.includes('kg') || u.includes('kilo') || u.includes('gr') || u.includes('gramo')) return true;
-            const peso = p.Peso_Promedio ? parseFloat(p.Peso_Promedio.toString().replace(',','.')) : 0;
+            const peso = parsearNumero(p.Peso_Promedio);
             if (peso > 0 && peso !== 1) return true;
             return false;
+        }
+
+        // --- FUNCIÓN RESTAURADA: NECESARIA PARA CALCULAR PRECIOS ---
+        function obtenerConfigVenta(p) {
+            const precioUnitario = Math.max(0, parsearNumero(p.Precio_Unitario));
+            const pesoPromedio = Math.max(0.001, parsearNumero(p.Peso_Promedio) || 1);
+            const unidadesPorBulto = Math.max(1, enteroSeguro(p.Unidades_Bulto, 1));
+            const esProductoPesable = esPesable(p);
+            const tieneBulto = unidadesPorBulto > 1;
+            const enModoBulto = tieneBulto && !!state.modoBulto[p.ID_Producto];
+
+            let factorPrecio = 1;
+            if (esProductoPesable) {
+                factorPrecio = enModoBulto ? (pesoPromedio * unidadesPorBulto) : pesoPromedio;
+            } else {
+                factorPrecio = enModoBulto ? unidadesPorBulto : 1;
+            }
+
+            return {
+                precioUnitario,
+                pesoPromedio,
+                unidadesPorBulto,
+                esProductoPesable,
+                tieneBulto,
+                enModoBulto,
+                factorPrecio: Math.max(0, factorPrecio),
+                precioVenta: redondearMoneda(precioUnitario * factorPrecio)
+            };
         }
 
         function toggleModoVenta(idProducto) {
@@ -1001,8 +1006,8 @@
             actualizarCarritoUI();
         }
 
+        // --- FUNCIÓN RESTAURADA: NECESARIA PARA LAS IMÁGENES ---
         function obtenerImagenProducto(p) {
-            // Busca la columna en la base de datos (Google Sheets) dinámicamente
             const candidata = [
                 p?.Imagen, p?.imagen, p?.URL_Imagen, p?.Url_Imagen, p?.Foto, p?.foto, p?.Imagen_URL
             ].find(v => typeof v === 'string' && v.trim().length > 5);
@@ -1014,7 +1019,6 @@
             if (url.includes('drive.google.com')) {
                 const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
                 if (match && match[1]) {
-                    // Transforma el link a un formato de descarga directa válido para la etiqueta <img>
                     return `https://drive.google.com/uc?export=view&id=${match[1]}`;
                 }
             }
@@ -1040,13 +1044,12 @@
                 const isSelected = qty > 0;
                 
                 const configVenta = obtenerConfigVenta(p);
-                const { esProductoPesable, pesoPromedio, unidadesPorBulto, tieneBulto, enModoBulto, precioVenta: precioMostrar, precioUnitario } = configVenta; // Agregado precioUnitario
+                const { esProductoPesable, pesoPromedio, unidadesPorBulto, tieneBulto, enModoBulto, precioVenta: precioMostrar, precioUnitario } = configVenta; 
 
                 let etiquetaUnidad = "Unitario"; 
                 let etiquetaDetalle = "";
 
                 if (esProductoPesable) {
-                    // MODIFICADO: Mostrar precio x Kg
                     etiquetaUnidad = `$${precioUnitario.toLocaleString()} x Kg`; 
 
                     if (enModoBulto) {
@@ -1196,7 +1199,6 @@
 
                 const info = calcularTotalItem(p, qty);
                 
-                // REPLICAMOS LOGICA DE VISUALIZACIÓN DE CARD
                 const configVenta = obtenerConfigVenta(p);
                 const { esProductoPesable, pesoPromedio, unidadesPorBulto, enModoBulto, precioUnitario } = configVenta;
 
@@ -1224,7 +1226,6 @@
                     <div class="flex-1 pr-2">
                         <div class="text-sm font-medium text-[var(--text-main)] mb-1">${p.Nombre}</div>
                         
-                        <!-- INFO EXTRA ESTILO CARD -->
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] text-[var(--text-sub)] font-black uppercase tracking-tighter bg-gray-100 dark:bg-gray-700 px-1 rounded">${etiquetaUnidad}</span>
                             <span class="text-[9px] text-[var(--text-sub)] italic">${etiquetaDetalle}</span>
@@ -1294,9 +1295,7 @@
                 }
             });
 
-            // RECUPERAR DATOS COMPLETOS DEL CLIENTE PARA EL ENVÍO
             const clienteFull = state.clientes.find(c => c.ID_Cliente === clienteId);
-
             const pedidoIdLocal = Date.now();
 
             const pedidoFinal = {
@@ -1305,7 +1304,6 @@
                     id: clienteId,
                     nombre: clienteNombre,
                     telefono: clienteTel,
-                    // Enviamos datos adicionales para que el backend pueda registrarlo automáticamente
                     direccion: clienteFull ? clienteFull.Direccion : "",
                     dueno: clienteFull ? clienteFull.Dueño : "",
                     latitud: clienteFull ? clienteFull.Latitud : "",
@@ -1351,12 +1349,10 @@
             const listaItems = pedido.items.map(i => `- ${i.detalle} ${i.nombre}`).join('\n');
             let mensaje = `Hola! Te confirmo pedido:\n${listaItems}\n*Total Estimado: $${pedido.total.toLocaleString()}*`;
             
-            // NUEVO: Agregar nota al mensaje
             if(pedido.notas) {
                 mensaje += `\n\n📝 *Nota:* ${pedido.notas}`;
             }
 
-            // NUEVO: Firma vendedor
             const vendedor = state.config.nombreVendedor || "Vendedor";
             mensaje += `\n\n_Enviado por: ${vendedor}_`;
 
@@ -1370,7 +1366,6 @@
             try {
                 const stored = SafeStorage.getItem('db_historial');
                 const parsed = stored ? JSON.parse(stored) : [];
-                // Aseguramos que sea array, sino array vacío
                 state.historial = Array.isArray(parsed)
                     ? parsed.map(normalizarPedidoHistorial).filter(Boolean)
                     : [];
@@ -1424,7 +1419,6 @@
         function toggleHistory() {
             const modal = document.getElementById('historyModal');
             if (modal.classList.contains('hidden')) {
-                // Validación DOM: Asegurar que los inputs existen antes de usarlos
                 const inputClient = document.getElementById('history-search-client');
                 const inputDate = document.getElementById('history-search-date');
                 const btnClear = document.getElementById('clear-history-btn');
@@ -1433,8 +1427,6 @@
                 if(inputDate) inputDate.value = '';
                 if(btnClear) btnClear.classList.add('hidden'); 
                 
-                // PRIMERO ABRIMOS, LUEGO RENDERIZAMOS.
-                // Si renderizar falla, al menos la ventana está abierta y vacía.
                 modal.classList.remove('hidden');
                 
                 try {
@@ -1456,16 +1448,14 @@
 
         function renderizarHistorial() {
             const container = document.getElementById('historyListContainer');
-            if (!container) return; // Validación DOM
+            if (!container) return; 
 
             container.innerHTML = "";
             
-            // Validación de Datos: Si no es array, lo forzamos a serlo y limpiamos
             if (!Array.isArray(state.historial)) {
                 state.historial = [];
             }
             
-            // Safe access to inputs
             const inputClient = document.getElementById('history-search-client');
             const inputDate = document.getElementById('history-search-date');
             
@@ -1478,12 +1468,10 @@
                  else clearHistBtn.classList.add('hidden');
             }
 
-            // --- FILTRO SEGURO ---
-            // Usamos un array intermedio para no romper el filter original si hay datos malos
             let historialFiltrado = [];
             try {
                 historialFiltrado = state.historial.filter(p => {
-                    if(!p || !p.cliente) return false; // Descarte silencioso de basura
+                    if(!p || !p.cliente) return false; 
                     
                     const nombresProductos = (p.items || []).map(i => i ? (i.nombre || '') : '').join(" ");
                     const textoPedido = `${p.cliente.nombre || 'Cliente'} ${p.id_interno} ${p.total} ${nombresProductos}`;
@@ -1519,10 +1507,8 @@
                 return;
             }
 
-            // --- RENDERIZADO "ITEM POR ITEM" (Aislado) ---
             historialFiltrado.forEach(p => {
                 try {
-                    // Si un item falla, solo ese item se deja de mostrar
                     const el = document.createElement('div');
                     el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
                     
@@ -1544,7 +1530,6 @@
                     const total = p.total ? p.total.toLocaleString() : '0';
                     const itemsCount = p.items ? p.items.length : 0;
                     
-                    // SANEAMIENTO DE ID: Aseguramos que sea un string seguro para onclick
                     const safeId = String(p.id_interno).replace(/[^a-zA-Z0-9-]/g, '');
 
                     el.innerHTML = `
@@ -1580,25 +1565,20 @@
             });
         }
         
-        // --- 5.1 FUNCIONES FALTANTES AÑADIDAS ---
-
         function repetirPedido(idPedido) {
             const pedido = state.historial.find(p => String(p.id_interno) === String(idPedido));
             if (!pedido) return;
 
             if (!confirm(`¿Cargar el pedido de ${pedido.cliente.nombre} al carrito actual? Se reemplazarán los items actuales.`)) return;
 
-            // 1. Limpiar carrito actual
             state.carrito = {};
 
-            // 2. Reconstruir carrito desde items del historial
             if(pedido.items && Array.isArray(pedido.items)) {
                 pedido.items.forEach(item => {
                     state.carrito[item.id] = item.cantidad_sistema;
                 });
             }
 
-            // 3. Restaurar Cliente Seleccionado (Mapeo Inverso)
             const clienteHistorial = pedido.cliente;
             if(clienteHistorial) {
                 const clienteRestaurado = {
@@ -1614,12 +1594,10 @@
                 seleccionarCliente(clienteRestaurado);
             }
 
-            // 4. Actualizar toda la interfaz
             const busqueda = document.getElementById('searchInput').value;
             renderizarProductos(busqueda);
             actualizarCarritoUI();
             
-            // 5. UX: Cerrar historial y mostrar carrito
             toggleHistory();
             setTimeout(() => {
                 toggleCartModal();
@@ -1631,7 +1609,6 @@
             const pedido = state.historial.find(p => String(p.id_interno) === String(idPedido));
             if (!pedido || !pedido.cliente) return;
             
-            // Reutilizamos la lógica existente de WhatsApp
             abrirWhatsapp(pedido, pedido.cliente.telefono);
         }
 
@@ -1726,12 +1703,10 @@
             else document.body.classList.remove('dark-mode');
         }
 
-        // NUEVO: Guardar nombre vendedor
         function guardarNombreVendedor(nombre) {
             state.config.nombreVendedor = nombre;
             SafeStorage.setItem('app_config', JSON.stringify(state.config));
             
-            // Actualizar UI en tiempo real
             const display = document.getElementById('header-vendedor-name');
             if(display) display.textContent = nombre || "Sin Identificar";
         }
@@ -1744,7 +1719,6 @@
                 document.body.classList.add('dark-mode');
             }
             
-            // Cargar nombre vendedor
             if(state.config.nombreVendedor) {
                 document.getElementById('config-vendedor').value = state.config.nombreVendedor;
                 document.getElementById('header-vendedor-name').textContent = state.config.nombreVendedor;
