@@ -433,32 +433,6 @@
         </div>
     </div>
 
-    <!-- 8. MODAL DETALLES CLIENTE (NUEVO) -->
-    <div id="clientDetailsModal" class="fixed inset-0 z-[80] hidden flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleClientDetails()"></div>
-        <div class="relative bg-[var(--surface-container)] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
-             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-[var(--text-main)]">Detalles Cliente</h2>
-                <button onclick="toggleClientDetails()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
-                    <i class="ph-bold ph-x"></i>
-                </button>
-            </div>
-            
-            <div id="cd-content" class="space-y-3 mb-6 text-sm text-[var(--text-main)]">
-                <!-- Contenido dinámico inyectado JS -->
-            </div>
-
-            <div class="grid grid-cols-1 gap-3">
-                <button id="btn-share-loc" onclick="compartirUbicacionActual()" class="w-full py-3 bg-blue-100 text-blue-700 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-200 transition">
-                    <i class="ph-bold ph-map-pin"></i> Compartir Ubicación
-                </button>
-                <button id="btn-share-full" onclick="compartirDatosActuales()" class="w-full py-3 bg-green-100 text-green-700 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-200 transition">
-                    <i class="ph-bold ph-whatsapp-logo"></i> Compartir Ficha Completa
-                </button>
-            </div>
-        </div>
-    </div>
-
     <script>
         // --- 1. CONFIGURACIÓN ---
         // ⚠️ PEGA TU URL DE APPS SCRIPT AQUÍ (La que termina en /exec)
@@ -1346,8 +1320,16 @@
 
         // --- 5. LÓGICA DE HISTORIAL Y REPETIR PEDIDO ---
         function cargarHistorialLocal() {
-            const historial = JSON.parse(localStorage.getItem('db_historial') || "[]");
-            state.historial = historial;
+            try {
+                const stored = localStorage.getItem('db_historial');
+                const parsed = stored ? JSON.parse(stored) : [];
+                // Aseguramos que sea array, sino array vacío
+                state.historial = Array.isArray(parsed) ? parsed : [];
+            } catch(e) {
+                console.error("Error cargando historial, reseteando...", e);
+                state.historial = [];
+                localStorage.removeItem('db_historial');
+            }
         }
 
         function guardarEnHistorial(pedido, estado = 'Enviado') {
@@ -1366,13 +1348,12 @@
                 document.getElementById('history-search-date').value = '';
                 document.getElementById('clear-history-btn').classList.add('hidden'); 
                 
-                // INTENTO SEGURO DE RENDERIZAR
                 try {
                     renderizarHistorial();
                     modal.classList.remove('hidden');
                 } catch(e) {
                     console.error("Error al renderizar historial:", e);
-                    alert("Hubo un error al cargar el historial. Es posible que los datos guardados sean incompatibles.");
+                    alert("Error visualizando historial: " + e.message);
                 }
             } else {
                 modal.classList.add('hidden');
@@ -1388,7 +1369,14 @@
 
         function renderizarHistorial() {
             const container = document.getElementById('historyListContainer');
+            if (!container) return; // Validación DOM
+
             container.innerHTML = "";
+            
+            // Validación de Datos: Si no es array, lo forzamos a serlo y limpiamos
+            if (!Array.isArray(state.historial)) {
+                state.historial = [];
+            }
             
             const filtroTexto = document.getElementById('history-search-client').value;
             const filtroFecha = document.getElementById('history-search-date').value; 
@@ -1397,12 +1385,11 @@
             if(filtroTexto && filtroTexto.length > 0) clearHistBtn.classList.remove('hidden');
             else clearHistBtn.classList.add('hidden');
 
-            // --- FILTRADO SEGURO ---
             const historialFiltrado = state.historial.filter(p => {
-                // VALIDACIÓN: Si el pedido está corrupto (sin cliente o items), lo ignoramos
-                if(!p || !p.cliente || !p.items) return false;
+                // Validación Estricta de cada pedido
+                if(!p || !p.cliente || !Array.isArray(p.items)) return false;
 
-                const nombresProductos = (p.items || []).map(i => i.nombre).join(" ");
+                const nombresProductos = (p.items || []).map(i => i ? (i.nombre || '') : '').join(" ");
                 // Buscamos en Cliente, ID, Total y Nombres de Productos
                 const textoPedido = `${p.cliente.nombre || 'Cliente'} ${p.id_interno} ${p.total} ${nombresProductos}`;
                 
@@ -1432,9 +1419,6 @@
             }
 
             historialFiltrado.forEach(p => {
-                // DOBLE VALIDACIÓN POR SEGURIDAD
-                if(!p.cliente) return; 
-
                 const el = document.createElement('div');
                 el.className = "bg-[var(--surface-container)] border border-gray-100 dark:border-gray-800 rounded-xl p-3 shadow-sm";
                 
