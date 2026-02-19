@@ -1030,6 +1030,25 @@
             actualizarCarritoUI();
         }
 
+        function obtenerImagenProducto(p) {
+            const candidata = [
+                p?.Imagen,
+                p?.imagen,
+                p?.URL_Imagen,
+                p?.Url_Imagen,
+                p?.url_imagen,
+                p?.Foto,
+                p?.foto,
+                p?.Image,
+                p?.image
+            ].find(v => typeof v === 'string' && v.trim().length > 5);
+
+            if (!candidata) return "";
+            const url = candidata.trim();
+            if (/^https?:\/\//i.test(url) || /^data:image\//i.test(url)) return url;
+            return "";
+        }
+
         function renderizarProductos(filtro = "") {
             const lista = document.getElementById('productList');
             lista.innerHTML = "";
@@ -1073,9 +1092,10 @@
                 const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `Stock: ${p.Stock_Actual} ${p.Unidad || ''}` : "Stock: --";
 
                 // === LÓGICA DE IMAGEN ===
-                const tieneImg = p.Imagen && p.Imagen.length > 5;
+                const imgSrc = obtenerImagenProducto(p);
+                const tieneImg = !!imgSrc;
                 const imgHtml = tieneImg
-                    ? `<img src="${p.Imagen}" onerror="this.onerror=null;this.parentNode.innerHTML='<div class=\'w-20 h-20 bg-gray-100 flex items-center justify-center text-gray-300 rounded-lg\'><i class=\'ph-bold ph-image text-2xl\'></i></div>'" class="w-20 h-20 object-cover rounded-lg bg-white shrink-0 border border-gray-100">`
+                    ? `<img src="${imgSrc}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.parentNode.innerHTML='<div class='\''w-20 h-20 bg-gray-100 flex items-center justify-center text-gray-300 rounded-lg'\''><i class='\''ph-bold ph-image text-2xl'\''></i></div>'" class="w-20 h-20 object-cover rounded-lg bg-white shrink-0 border border-gray-100">`
                     : `<div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 text-gray-300 border border-gray-100"><i class="ph-bold ph-image text-2xl"></i></div>`;
 
                 const card = document.createElement('div');
