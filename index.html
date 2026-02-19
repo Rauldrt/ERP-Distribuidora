@@ -433,6 +433,31 @@
         </div>
     </div>
 
+    <!-- 8. MODAL DETALLE CLIENTE -->
+    <div id="clientDetailsModal" class="fixed inset-0 z-[80] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleClientDetails()"></div>
+        <div class="relative bg-[var(--surface-container)] w-full max-w-md rounded-2xl p-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-lg font-bold text-[var(--text-main)]">Detalle del Cliente</h2>
+                <button onclick="toggleClientDetails()" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[var(--text-main)]">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <div id="cd-content" class="space-y-3 text-sm text-[var(--text-main)]"></div>
+
+            <div class="grid grid-cols-2 gap-2 mt-4">
+                <button id="btn-share-loc" type="button" onclick="compartirUbicacionActual()" class="py-2.5 rounded-xl bg-green-600 text-white font-medium text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition">
+                    <i class="ph-bold ph-map-pin"></i> Ubicación
+                </button>
+                <button type="button" onclick="compartirDatosActuales()" class="py-2.5 rounded-xl bg-[var(--primary)] text-white font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 transition">
+                    <i class="ph-bold ph-share-network"></i> Compartir
+                </button>
+            </div>
+        </div>
+    </div>
+
+
     <script>
         // --- 1. CONFIGURACIÓN ---
         // ⚠️ PEGA TU URL DE APPS SCRIPT AQUÍ (La que termina en /exec)
@@ -862,6 +887,7 @@
         function verDetallesCliente(cliente) {
             state.clienteVisualizado = cliente;
             const content = document.getElementById('cd-content');
+            if(!content) return;
             
             // Construir HTML de detalles
             let html = `
@@ -910,6 +936,7 @@
             
             // Habilitar/Deshabilitar botón mapa
             const btnLoc = document.getElementById('btn-share-loc');
+            if(!btnLoc) return;
             if(!cliente.Latitud || !cliente.Longitud) {
                 btnLoc.classList.add('opacity-50', 'cursor-not-allowed');
                 btnLoc.onclick = null; 
@@ -1003,6 +1030,25 @@
             actualizarCarritoUI();
         }
 
+        function obtenerImagenProducto(p) {
+            const candidata = [
+                p?.Imagen,
+                p?.imagen,
+                p?.URL_Imagen,
+                p?.Url_Imagen,
+                p?.url_imagen,
+                p?.Foto,
+                p?.foto,
+                p?.Image,
+                p?.image
+            ].find(v => typeof v === 'string' && v.trim().length > 5);
+
+            if (!candidata) return "";
+            const url = candidata.trim();
+            if (/^https?:\/\//i.test(url) || /^data:image\//i.test(url)) return url;
+            return "";
+        }
+
         function renderizarProductos(filtro = "") {
             const lista = document.getElementById('productList');
             lista.innerHTML = "";
@@ -1046,9 +1092,10 @@
                 const stockDisplay = (p.Stock_Actual !== undefined && p.Stock_Actual !== "") ? `Stock: ${p.Stock_Actual} ${p.Unidad || ''}` : "Stock: --";
 
                 // === LÓGICA DE IMAGEN ===
-                const tieneImg = p.Imagen && p.Imagen.length > 5;
+                const imgSrc = obtenerImagenProducto(p);
+                const tieneImg = !!imgSrc;
                 const imgHtml = tieneImg
-                    ? `<img src="${p.Imagen}" onerror="this.onerror=null;this.parentNode.innerHTML='<div class=\'w-20 h-20 bg-gray-100 flex items-center justify-center text-gray-300 rounded-lg\'><i class=\'ph-bold ph-image text-2xl\'></i></div>'" class="w-20 h-20 object-cover rounded-lg bg-white shrink-0 border border-gray-100">`
+                    ? `<img src="${imgSrc}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.parentNode.innerHTML='<div class='\''w-20 h-20 bg-gray-100 flex items-center justify-center text-gray-300 rounded-lg'\''><i class='\''ph-bold ph-image text-2xl'\''></i></div>'" class="w-20 h-20 object-cover rounded-lg bg-white shrink-0 border border-gray-100">`
                     : `<div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 text-gray-300 border border-gray-100"><i class="ph-bold ph-image text-2xl"></i></div>`;
 
                 const card = document.createElement('div');
@@ -1352,7 +1399,9 @@
                 const stored = SafeStorage.getItem('db_historial');
                 const parsed = stored ? JSON.parse(stored) : [];
                 // Aseguramos que sea array, sino array vacío
-                state.historial = Array.isArray(parsed) ? parsed : [];
+                state.historial = Array.isArray(parsed)
+                    ? parsed.map(normalizarPedidoHistorial).filter(Boolean)
+                    : [];
             } catch(e) {
                 console.error("Error cargando historial, reseteando...", e);
                 state.historial = [];
@@ -1360,10 +1409,41 @@
             }
         }
 
+        function normalizarPedidoHistorial(pedido) {
+            if(!pedido || typeof pedido !== 'object') return null;
+
+            const clienteOrigen = pedido.cliente || {};
+            const nombreLegacy = pedido.cliente_nombre || pedido.nombreCliente || pedido.Nombre_Negocio || '';
+            const telefonoLegacy = pedido.cliente_telefono || pedido.telefono || pedido.Telefono || '';
+            const idLegacy = pedido.cliente_id || pedido.ID_Cliente || 'UNKNOWN';
+
+            const cliente = {
+                id: clienteOrigen.id || idLegacy,
+                nombre: clienteOrigen.nombre || nombreLegacy || 'Cliente Desconocido',
+                telefono: clienteOrigen.telefono || telefonoLegacy,
+                direccion: clienteOrigen.direccion || '',
+                dueno: clienteOrigen.dueno || '',
+                latitud: clienteOrigen.latitud || '',
+                longitud: clienteOrigen.longitud || '',
+                esNuevo: Boolean(clienteOrigen.esNuevo)
+            };
+
+            if(!cliente.nombre) return null;
+
+            return {
+                ...pedido,
+                id_interno: pedido.id_interno || Date.now(),
+                cliente,
+                items: Array.isArray(pedido.items) ? pedido.items : [],
+                total: Number(pedido.total) || 0
+            };
+        }
+
         function guardarEnHistorial(pedido, estado = 'Enviado') {
             const historial = JSON.parse(SafeStorage.getItem('db_historial') || "[]");
-            pedido.estado = estado;
-            historial.unshift(pedido);
+            const pedidoNormalizado = normalizarPedidoHistorial({ ...pedido, estado });
+            if(!pedidoNormalizado) return;
+            historial.unshift(pedidoNormalizado);
             if(historial.length > 50) historial.pop();
             SafeStorage.setItem('db_historial', JSON.stringify(historial));
             state.historial = historial;
@@ -1513,10 +1593,10 @@
                             <div class="font-bold text-[var(--primary)]">$${total}</div>
                         </div>
                         <div class="mt-2 pt-2 flex gap-2">
-                            <button onclick='repetirPedido(${p.id_interno})' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
+                            <button onclick='repetirPedido("${safeId}")' class="flex-1 bg-[var(--primary)] text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:opacity-90 transition">
                                 <i class="ph-bold ph-arrows-clockwise"></i> Repetir
                             </button>
-                            <button onclick='abrirWhatsappHistorial(${p.id_interno})' class="flex-1 bg-green-500 text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:bg-green-600 transition">
+                            <button onclick='abrirWhatsappHistorial("${safeId}")' class="flex-1 bg-green-500 text-white text-xs py-2 rounded-lg font-medium flex items-center justify-center gap-1 hover:bg-green-600 transition">
                                 <i class="ph-bold ph-whatsapp-logo"></i> Reenviar
                             </button>
                         </div>
@@ -1531,7 +1611,7 @@
         // --- 5.1 FUNCIONES FALTANTES AÑADIDAS ---
 
         function repetirPedido(idPedido) {
-            const pedido = state.historial.find(p => p.id_interno === idPedido);
+            const pedido = state.historial.find(p => String(p.id_interno) === String(idPedido));
             if (!pedido) return;
 
             if (!confirm(`¿Cargar el pedido de ${pedido.cliente.nombre} al carrito actual? Se reemplazarán los items actuales.`)) return;
@@ -1576,7 +1656,7 @@
         }
 
         function abrirWhatsappHistorial(idPedido) {
-            const pedido = state.historial.find(p => p.id_interno === idPedido);
+            const pedido = state.historial.find(p => String(p.id_interno) === String(idPedido));
             if (!pedido || !pedido.cliente) return;
             
             // Reutilizamos la lógica existente de WhatsApp
