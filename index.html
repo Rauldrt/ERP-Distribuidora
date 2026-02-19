@@ -1002,9 +1002,9 @@
         }
 
         function obtenerImagenProducto(p) {
-            // Busca en diferentes posibles nombres de columna de forma dinámica
+            // Busca la columna en la base de datos (Google Sheets) dinámicamente
             const candidata = [
-                p?.Imagen, p?.imagen, p?.URL_Imagen, p?.Url_Imagen, p?.url_imagen, p?.Foto, p?.foto, p?.Image, p?.image
+                p?.Imagen, p?.imagen, p?.URL_Imagen, p?.Url_Imagen, p?.Foto, p?.foto, p?.Imagen_URL
             ].find(v => typeof v === 'string' && v.trim().length > 5);
 
             if (!candidata) return "";
@@ -1014,12 +1014,11 @@
             if (url.includes('drive.google.com')) {
                 const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
                 if (match && match[1]) {
+                    // Transforma el link a un formato de descarga directa válido para la etiqueta <img>
                     return `https://drive.google.com/uc?export=view&id=${match[1]}`;
                 }
             }
-            
-            if (/^https?:\/\//i.test(url) || /^data:image\//i.test(url)) return url;
-            return "";
+            return url;
         }
 
         function renderizarProductos(filtro = "") {
